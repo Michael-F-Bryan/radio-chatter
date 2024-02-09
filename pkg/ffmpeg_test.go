@@ -1,7 +1,9 @@
 package radiochatter
 
 import (
+	"context"
 	_ "embed"
+	"path"
 	"strings"
 	"testing"
 	"time"
@@ -21,31 +23,12 @@ type endPair struct {
 func TestParseStderr(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	reader := strings.NewReader(stderr)
-	started := false
-	writing := []string{}
-	silenceStart := []time.Duration{}
-	silenceEnd := []endPair{}
-	cb := FfmpegCallbacks{
-		DownloadStarted: func() { started = true },
-		StartWriting: func(path string) {
-			writing = append(writing, path)
-		},
-		SilenceStart: func(t time.Duration) {
-			silenceStart = append(silenceStart, t)
-		},
-		UnknownMessage: func(msg ComponentMessage) {
-			t.Errorf("Unknown message: %#v", msg)
-		},
-		SilenceEnd: func(t, duration time.Duration) {
-			silenceEnd = append(silenceEnd, endPair{t, duration})
-		},
-	}
+	var cb callbacks
+	parseStderr(logger, reader, cb.Callbacks(t))
 
-	parseStderr(logger, reader, cb)
-
-	assert.True(t, started)
-	assert.Equal(t, []string{"output000.mp3", "output001.mp3", "output002.mp3"}, writing)
-	assert.Equal(t, []time.Duration{0, 24462600000, 36254100000, 65108099999, 100403000000, 110320000000, 118398000000}, silenceStart)
+	assert.True(t, cb.started)
+	assert.Equal(t, []string{"output000.mp3", "output001.mp3", "output002.mp3"}, cb.writing)
+	assert.Equal(t, []time.Duration{0, 24462600000, 36254100000, 65108099999, 100403000000, 110320000000, 118398000000}, cb.silenceStart)
 	assert.Equal(
 		t,
 		[]endPair{
@@ -57,6 +40,98 @@ func TestParseStderr(t *testing.T) {
 			{112502000000, 2181379999},
 			{120913000000, 2515120000},
 		},
-		silenceEnd,
+		cb.silenceEnd,
 	)
+	assert.Empty(t, cb.unknown)
+}
+
+func TestRealRecording(t *testing.T) {
+	logger := zaptest.NewLogger(t)
+	ctx := testContext(t)
+	input := "recording.mp3"
+	temp := t.TempDir()
+	var cb callbacks
+
+	err := Preprocess(ctx, logger, input, temp, cb.Callbacks(t))
+
+	assert.NoError(t, err)
+	assert.Equal(t,
+		callbacks{
+			started: true,
+			writing: []string{
+				path.Join(temp, "output0.mp3"),
+				path.Join(temp, "output1.mp3"),
+				path.Join(temp, "output2.mp3"),
+			},
+			silenceStart: []time.Duration{
+				0,
+				22560400000,
+				28632600000,
+				58637000000,
+				69876800000,
+				79490900000,
+				84196100000,
+				91028599999,
+				92998500000,
+				100691000000,
+				138446000000,
+				143333000000,
+			},
+			silenceEnd: []endPair{
+				{18323800000, 18323800000},
+				{26447300000, 3886880000},
+				{29799600000, 1167000000},
+				{61848000000, 3211000000},
+				{71608400000, 1731620000},
+				{82476299999, 2985370000},
+				{86355800000, 2159630000},
+				{92477800000, 1449120000},
+				{94763400000, 1764870000},
+				{101918000000, 1227379999},
+				{141415000000, 2968370000},
+				{158256000000, 14923199999},
+			},
+			unknown: nil,
+		},
+		cb,
+	)
+}
+
+func testContext(t *testing.T) context.Context {
+	t.Helper()
+	if deadline, ok := t.Deadline(); ok {
+		ctx, cancel := context.WithDeadline(context.Background(), deadline)
+		t.Cleanup(cancel)
+		return ctx
+	}
+
+	return context.Background()
+}
+
+type callbacks struct {
+	started      bool
+	writing      []string
+	silenceStart []time.Duration
+	silenceEnd   []endPair
+	unknown      []ComponentMessage
+}
+
+func (c *callbacks) Callbacks(t *testing.T) FfmpegCallbacks {
+	t.Helper()
+
+	return FfmpegCallbacks{
+		DownloadStarted: func() { c.started = true },
+		StartWriting: func(path string) {
+			c.writing = append(c.writing, path)
+		},
+		SilenceStart: func(t time.Duration) {
+			c.silenceStart = append(c.silenceStart, t)
+		},
+		UnknownMessage: func(msg ComponentMessage) {
+			t.Errorf("Unknown message: %#v", msg)
+		},
+		SilenceEnd: func(t, duration time.Duration) {
+			c.silenceEnd = append(c.silenceEnd, endPair{t, duration})
+		},
+	}
 }

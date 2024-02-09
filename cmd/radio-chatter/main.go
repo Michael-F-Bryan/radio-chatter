@@ -48,7 +48,7 @@ func main() {
 
 	group.Go(func() error {
 		cb := callbacks{logger: logger}
-		return radiochatter.RunFfmpeg(ctx, logger, args.url, dir, cb.Callbacks())
+		return radiochatter.Preprocess(ctx, logger, args.url, dir, cb.Callbacks())
 	})
 
 	logger.Info("Starting", zap.String("temp", dir))

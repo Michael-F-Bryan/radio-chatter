@@ -28,7 +28,16 @@ var openingFilePattern = regexp.MustCompile(`^Opening '([^']+)' for writing$`)
 var silenceStartPattern = regexp.MustCompile(`silence_start: (\d+(?:\.\d+)?)`)
 var silenceEndPattern = regexp.MustCompile(`silence_end: (\d+(?:\.\d+)?) \| silence_duration: (\d+(?:\.\d+)?)`)
 
-func RunFfmpeg(ctx context.Context, logger *zap.Logger, input string, outputDir string, cb FfmpegCallbacks) error {
+// Preprocess will take some ffmpeg input and split it into 60-second chunks,
+// saved in the provided directory.
+//
+// The input may be a URL or a filename.
+//
+// Ffmpeg will try to gracefully shut down (flushing buffers, terminating mp3,
+// etc.) when the context is cancelled. However, if the graceful shutdown
+// doesn't complete within a reasonable amount of time it will be forcefully
+// killed.
+func Preprocess(ctx context.Context, logger *zap.Logger, input string, outputDir string, cb FfmpegCallbacks) error {
 	args := []string{
 		"-i", input,
 		// Use a filter to detect silence and print its timestamps
