@@ -1,0 +1,38 @@
+Input #0, mp3, from 'https://broadcastify.cdnstream1.com/39131':
+  Metadata:
+    icy-genre       : Public Safety
+    icy-name        : Western Australia Fire Dispatch - DFES
+    icy-pub         : 0
+  Duration: N/A, start: 0.000000, bitrate: 8 kb/s
+  Stream #0:0: Audio: mp3, 8000 Hz, mono, fltp, 8 kb/s
+Stream mapping:
+  Stream #0:0 -> #0:0 (mp3 (mp3float) -> mp3 (libmp3lame))
+[segment @ 0x11f204440] Opening 'output000.mp3' for writing
+Output #0, segment, to 'output%03d.mp3':
+  Metadata:
+    icy-genre       : Public Safety
+    icy-name        : Western Australia Fire Dispatch - DFES
+    icy-pub         : 0
+    encoder         : Lavf60.16.100
+  Stream #0:0: Audio: mp3, 8000 Hz, mono, fltp
+    Metadata:
+      encoder         : Lavc60.31.102 libmp3lame
+[silencedetect @ 0x6000032e7120] silence_start: 0
+[silencedetect @ 0x6000032e7120] silence_end: 19.0299 | silence_duration: 19.0299
+[silencedetect @ 0x6000032e7120] silence_start: 24.4626
+[silencedetect @ 0x6000032e7120] silence_end: 31.3061 | silence_duration: 6.8435
+[silencedetect @ 0x6000032e7120] silence_start: 36.2541
+[silencedetect @ 0x6000032e7120] silence_end: 60.4186 | silence_duration: 24.1645
+[segment @ 0x11f204440] Opening 'output001.mp3' for writing
+[silencedetect @ 0x6000032e7120] silence_start: 65.1081
+[silencedetect @ 0x6000032e7120] silence_end: 96.0964 | silence_duration: 30.9883
+[silencedetect @ 0x6000032e7120] silence_start: 100.403
+[silencedetect @ 0x6000032e7120] silence_end: 102.443 | silence_duration: 2.04062
+[silencedetect @ 0x6000032e7120] silence_start: 110.32
+[silencedetect @ 0x6000032e7120] silence_end: 112.502 | silence_duration: 2.18138
+[silencedetect @ 0x6000032e7120] silence_start: 118.398
+[segment @ 0x11f204440] Opening 'output002.mp3' for writing
+[silencedetect @ 0x6000032e7120] silence_end: 120.913 | silence_duration: 2.51512
+[out#0/segment @ 0x6000023f40c0] video:0kB audio:120kB subtitle:0kB other streams:0kB global headers:0kB muxing overhead: unknown
+size=N/A time=00:02:02.18 bitrate=N/A speed=1.15x    
+Exiting normally, received signal 2.
