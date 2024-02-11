@@ -6,7 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"time"
+	"path"
 
 	radiochatter "github.com/Michael-F-Bryan/radio-chatter/pkg"
 	"go.uber.org/zap"
@@ -24,38 +24,75 @@ func main() {
 	defer cancel()
 
 	group, ctx := errgroup.WithContext(ctx)
+	storage := setupStorage(logger.Named("storage"))
+	archiveOps := make(chan radiochatter.ArchiveOperation)
 
-	ch := make(chan radiochatter.ComponentMessage)
-	go func() {
-		for msg := range ch {
-			logger.Info("message", zap.Any("msg", msg))
-		}
-	}()
+	group.Go(preprocess(ctx, logger.Named("preprocess"), args.url, archiveOps))
+	group.Go(archive(ctx, logger.Named("archive"), archiveOps, storage))
 
-	dir, err := os.MkdirTemp("", "radio-chatter-tmp")
-	if err != nil {
-		logger.Fatal("Unable to create a temporary directory", zap.Error(err))
-	}
-	defer func() {
-		if err := os.RemoveAll(dir); err != nil {
-			logger.Error(
-				"Unable to remove the temporary directory",
-				zap.String("temp", dir),
-				zap.Error(err),
-			)
-		}
-	}()
-
-	group.Go(func() error {
-		cb := callbacks{logger: logger}
-		return radiochatter.Preprocess(ctx, logger, args.url, dir, cb.Callbacks())
-	})
-
-	logger.Info("Starting", zap.String("temp", dir))
 	defer logger.Info("Shutting down")
 
 	if err := group.Wait(); err != nil {
 		logger.Fatal("Failed", zap.Error(err))
+	}
+}
+
+type Thunk = func() error
+
+func archive(
+	ctx context.Context,
+	logger *zap.Logger,
+	archiveOps <-chan radiochatter.ArchiveOperation,
+	storage radiochatter.BlobStorage,
+) Thunk {
+	return func() error {
+		state := radiochatter.ArchiveState{
+			Logger:  logger,
+			Storage: storage,
+		}
+
+		for {
+			select {
+			case op, ok := <-archiveOps:
+				if !ok {
+					// Channel was closed. No more ops to execute.
+					return nil
+				}
+
+				if err := op.Apply(ctx, state); err != nil {
+					return err
+				}
+			case <-ctx.Done():
+				return nil
+			}
+		}
+	}
+}
+
+func preprocess(
+	ctx context.Context,
+	logger *zap.Logger,
+	url string,
+	archiveOps chan<- radiochatter.ArchiveOperation,
+) Thunk {
+	return func() error {
+		dir, err := os.MkdirTemp("", "radio-chatter-tmp")
+		if err != nil {
+			logger.Fatal("Unable to create a temporary directory", zap.Error(err))
+		}
+		logger.Debug("Saving clips to a temporary directory", zap.String("path", dir))
+		defer func() {
+			if err := os.RemoveAll(dir); err != nil {
+				logger.Error(
+					"Unable to remove the temporary directory",
+					zap.String("temp", dir),
+					zap.Error(err),
+				)
+			}
+		}()
+
+		cb := radiochatter.ArchiveCallbacks(archiveOps)
+		return radiochatter.Preprocess(ctx, logger, url, dir, cb)
 	}
 }
 
@@ -92,36 +129,13 @@ func (a args) initializeLogger() {
 	zap.ReplaceGlobals(logger)
 }
 
-type callbacks struct {
-	logger *zap.Logger
-}
-
-func (c *callbacks) DownloadStarted() {
-	c.logger.Info("Download started")
-}
-
-func (c *callbacks) StartWriting(path string) {
-	c.logger.Info("Started writing", zap.String("path", path))
-}
-
-func (c *callbacks) UnknownMessage(msg radiochatter.ComponentMessage) {
-	c.logger.Debug("Message", zap.Any("msg", msg))
-}
-
-func (c *callbacks) SilenceStart(t time.Duration) {
-	c.logger.Info("Silence started", zap.Duration("start", t))
-}
-
-func (c *callbacks) SilenceEnd(t time.Duration, duration time.Duration) {
-	c.logger.Info("Silence ended", zap.Duration("end", t), zap.Duration("duration", duration))
-}
-
-func (c *callbacks) Callbacks() radiochatter.FfmpegCallbacks {
-	return radiochatter.FfmpegCallbacks{
-		DownloadStarted: c.DownloadStarted,
-		StartWriting:    c.StartWriting,
-		SilenceStart:    c.SilenceStart,
-		SilenceEnd:      c.SilenceEnd,
-		UnknownMessage:  c.UnknownMessage,
+func setupStorage(logger *zap.Logger) radiochatter.BlobStorage {
+	cacheDir, err := os.UserCacheDir()
+	if err != nil {
+		logger.Error("Unable to get the user's cache directory", zap.Error(err))
 	}
+
+	baseDir := path.Join(cacheDir, "radio-chatter", "clips")
+
+	return radiochatter.NewOnDiskStorage(logger, baseDir)
 }
