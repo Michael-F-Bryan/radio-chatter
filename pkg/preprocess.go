@@ -52,7 +52,6 @@ func Preprocess(ctx context.Context, logger *zap.Logger, input string, outputDir
 	}
 
 	cmd := exec.CommandContext(ctx, defaultCommand, args...)
-	cmd.Stdout = os.Stdout
 
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
@@ -99,9 +98,7 @@ func Preprocess(ctx context.Context, logger *zap.Logger, input string, outputDir
 	// Note: we want to make sure parsing has finished and no more callbacks are
 	// triggered before returning from this function. That way we don't end
 	// up with any dangling goroutines and everything is deterministic.
-	logger.Warn("Before parsing finished")
 	parsingError := <-parsingFinished
-	logger.Warn("After parsing finished", zap.Error(parsingError))
 
 	// There are two possible sources of errors, 1) parsing could have ran into
 	// problems (e.g. invalid UTF-8), and 2) the process could have exited with

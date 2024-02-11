@@ -20,7 +20,7 @@ func TestArchiveRealRecording(t *testing.T) {
 	input := testRecording(t)
 	temp := t.TempDir()
 	ch := make(chan ArchiveOperation)
-	cb := archiveCallbacks(ch, dummyNow)
+	cb := archiveCallbacks(ctx, ch, dummyNow)
 	go func() {
 		defer close(ch)
 		err := Preprocess(ctx, logger, input, temp, cb)
@@ -85,7 +85,8 @@ func TestArchiveRealRecording(t *testing.T) {
 func TestReplayStderrToArchiver(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	ch := make(chan ArchiveOperation, 16)
-	cb := archiveCallbacks(ch, dummyNow)
+	ctx := testContext(t)
+	cb := archiveCallbacks(ctx, ch, dummyNow)
 
 	err := parseStderr(logger, strings.NewReader(stderr), cb)
 
@@ -137,7 +138,8 @@ func TestReplayStderrToArchiver(t *testing.T) {
 
 func TestJustSilence(t *testing.T) {
 	ch := make(chan ArchiveOperation, 16)
-	cb := archiveCallbacks(ch, dummyNow)
+	ctx := testContext(t)
+	cb := archiveCallbacks(ctx, ch, dummyNow)
 
 	// First we start downloading
 	cb.onDownloadStarted()
@@ -175,7 +177,8 @@ func TestJustSilence(t *testing.T) {
 
 func TestClipContainingAudio(t *testing.T) {
 	ch := make(chan ArchiveOperation, 16)
-	cb := archiveCallbacks(ch, dummyNow)
+	ctx := testContext(t)
+	cb := archiveCallbacks(ctx, ch, dummyNow)
 
 	// First we start downloading
 	cb.onDownloadStarted()
@@ -218,7 +221,8 @@ func TestClipContainingAudio(t *testing.T) {
 
 func TestAudioInSecondClip(t *testing.T) {
 	ch := make(chan ArchiveOperation, 16)
-	cb := archiveCallbacks(ch, dummyNow)
+	ctx := testContext(t)
+	cb := archiveCallbacks(ctx, ch, dummyNow)
 
 	// First we start downloading
 	cb.onDownloadStarted()
@@ -267,7 +271,8 @@ func TestAudioInSecondClip(t *testing.T) {
 
 func TestAudioAcrossChunkBoundary(t *testing.T) {
 	ch := make(chan ArchiveOperation, 16)
-	cb := archiveCallbacks(ch, dummyNow)
+	ctx := testContext(t)
+	cb := archiveCallbacks(ctx, ch, dummyNow)
 
 	// First we start downloading
 	cb.onDownloadStarted()

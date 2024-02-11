@@ -27,10 +27,19 @@ func main() {
 	storage := setupStorage(logger.Named("storage"))
 	archiveOps := make(chan radiochatter.ArchiveOperation)
 
-	group.Go(preprocess(ctx, logger.Named("preprocess"), args.url, archiveOps))
+	temp, cleanup := mkdtemp(logger)
+	defer cleanup()
+
+	group.Go(preprocess(ctx, logger.Named("preprocess"), args.url, temp, archiveOps))
 	group.Go(archive(ctx, logger.Named("archive"), archiveOps, storage))
 
-	defer logger.Info("Shutting down")
+	defer logger.Info("Exit")
+
+	go func() {
+		<-ctx.Done()
+		logger.Debug("Beginning graceful shutdown (press ctrl-C to exit forcefully)")
+		cancel()
+	}()
 
 	if err := group.Wait(); err != nil {
 		logger.Fatal("Failed", zap.Error(err))
@@ -59,6 +68,8 @@ func archive(
 					return nil
 				}
 
+				logger.Debug("executing", zap.Stringer("description", op), zap.Reflect("op", op))
+
 				if err := op.Apply(ctx, state); err != nil {
 					return err
 				}
@@ -73,27 +84,34 @@ func preprocess(
 	ctx context.Context,
 	logger *zap.Logger,
 	url string,
+	dir string,
 	archiveOps chan<- radiochatter.ArchiveOperation,
 ) Thunk {
 	return func() error {
-		dir, err := os.MkdirTemp("", "radio-chatter-tmp")
-		if err != nil {
-			logger.Fatal("Unable to create a temporary directory", zap.Error(err))
-		}
-		logger.Debug("Saving clips to a temporary directory", zap.String("path", dir))
-		defer func() {
-			if err := os.RemoveAll(dir); err != nil {
-				logger.Error(
-					"Unable to remove the temporary directory",
-					zap.String("temp", dir),
-					zap.Error(err),
-				)
-			}
-		}()
+		defer close(archiveOps)
 
-		cb := radiochatter.ArchiveCallbacks(archiveOps)
+		cb := radiochatter.ArchiveCallbacks(ctx, archiveOps)
 		return radiochatter.Preprocess(ctx, logger, url, dir, cb)
 	}
+}
+
+func mkdtemp(logger *zap.Logger) (string, context.CancelFunc) {
+	dir, err := os.MkdirTemp("", "radio-chatter-tmp")
+	if err != nil {
+		logger.Fatal("Unable to create a temporary directory", zap.Error(err))
+	}
+	logger.Debug("Saving clips to a temporary directory", zap.String("path", dir))
+	cancel := func() {
+		if err := os.RemoveAll(dir); err != nil {
+			logger.Error(
+				"Unable to remove the temporary directory",
+				zap.String("temp", dir),
+				zap.Error(err),
+			)
+		}
+	}
+
+	return dir, cancel
 }
 
 type args struct {
