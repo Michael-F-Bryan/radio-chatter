@@ -28,8 +28,10 @@ func TestParseStderr(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	reader := strings.NewReader(stderr)
 	var cb eventData
-	parseStderr(logger, reader, cb.Callbacks(t))
 
+	err := parseStderr(logger, reader, cb.Callbacks(t))
+
+	assert.NoError(t, err)
 	assert.True(t, cb.started)
 	assert.Equal(t, []string{"output000.mp3", "output001.mp3", "output002.mp3"}, cb.writing)
 	assert.Equal(t, []time.Duration{0, 24462600000, 36254100000, 65108099999, 100403000000, 110320000000, 118398000000}, cb.silenceStart)

@@ -26,7 +26,7 @@ func ArchiveCallbacks(ch chan<- ArchiveOperation) PreprocessingCallbacks {
 			}
 			currentFile = path
 		},
-		Finished: func(err error) {
+		Finished: func() {
 			if currentFile != "" {
 				// Looks like we're finished... Make sure the last chunk gets
 				// persisted, too
@@ -69,5 +69,4 @@ func (p saveChunk) Apply(ctx context.Context, state ArchiveState) error {
 	state.Logger.Info("Saved file", zap.String("path", p.path), zap.Stringer("key", key))
 
 	return nil
-
 }

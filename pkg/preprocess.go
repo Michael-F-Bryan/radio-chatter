@@ -58,10 +58,10 @@ func Preprocess(ctx context.Context, logger *zap.Logger, input string, outputDir
 		return err
 	}
 
-	parsingFinished := make(chan struct{})
+	parsingFinished := make(chan error, 1)
 	go func() {
 		defer close(parsingFinished)
-		parseStderr(logger, stderr, cb)
+		parsingFinished <- parseStderr(logger, stderr, cb)
 	}()
 
 	// Note: We want to give ffmpeg a chance to flush its buffers and shut down
@@ -85,30 +85,40 @@ func Preprocess(ctx context.Context, logger *zap.Logger, input string, outputDir
 
 	err = cmd.Wait()
 
-	// Note: we want to make sure parsing has finished and no more callbacks are
-	// triggered before returning from this function. That way we don't end
-	// up with any dangling goroutines and everything is deterministic.
-	<-parsingFinished
-
 	// As an edge case, ffmpeg will exit with a 255 exit code when you send it a
 	// SIGINT (e.g. because we told it to shut down). This is an expected
 	// condition, so don't treat it like an error.
-	if cmd.ProcessState.ExitCode() == 255 {
-		return nil
+	if err != nil && cmd.ProcessState.ExitCode() == 255 {
+		err = nil
 	}
 
-	return err
+	// Note: we want to make sure parsing has finished and no more callbacks are
+	// triggered before returning from this function. That way we don't end
+	// up with any dangling goroutines and everything is deterministic.
+	parsingError := <-parsingFinished
+
+	// There are two possible sources of errors, 1) parsing could have ran into
+	// problems (e.g. invalid UTF-8), and 2) the process could have exited with
+	// a non-zero exit code. We want to prefer telling users about the latter
+	// because it's probably more actionable.
+	if err != nil {
+		return err
+	} else {
+		return parsingError
+	}
 }
 
 // parseStderr reads the output from ffmpeg and triggers callbacks to notify
 // the caller when certain events occur.
-func parseStderr(logger *zap.Logger, stderr io.Reader, cb PreprocessingCallbacks) {
+func parseStderr(logger *zap.Logger, stderr io.Reader, cb PreprocessingCallbacks) error {
 	state := state{
 		running: false,
 		cb:      cb,
 		logger:  logger,
 	}
 	buffer := bufio.NewScanner(stderr)
+
+	defer cb.onFinished()
 
 	for buffer.Scan() {
 		line := buffer.Text()
@@ -123,11 +133,11 @@ func parseStderr(logger *zap.Logger, stderr io.Reader, cb PreprocessingCallbacks
 
 			state.process(msg)
 		} else {
-			logger.Debug("stderr", zap.String("line", line))
+			cb.onUninterpretedStderr(line)
 		}
 	}
 
-	cb.onFinished(buffer.Err())
+	return buffer.Err()
 }
 
 type state struct {
@@ -205,19 +215,21 @@ type PreprocessingCallbacks struct {
 	// Ffmpeg has started downloading the input file.
 	DownloadStarted func()
 	// The preprocessor has started writing to a new chunk.
-	StartWriting    func(path string)
+	StartWriting func(path string)
 	// The start of a silent period has been detected.
 	//
 	// The duration is relative to the start of the input.
-	SilenceStart    func(t time.Duration)
+	SilenceStart func(t time.Duration)
 	// The end of a silent period has been detected.
 	//
 	// The durations are relative to the start of the input.
-	SilenceEnd      func(t time.Duration, duration time.Duration)
-	// An unknown message was encountered.
-	UnknownMessage  func(msg ComponentMessage)
+	SilenceEnd func(t time.Duration, duration time.Duration)
+	// An unknown message type was encountered.
+	UnknownMessage func(msg ComponentMessage)
+	// Received a line on stderr that wasn't part of a message.
+	UninterpretedStderr func(string)
 	// Preprocessing has finished.
-	Finished        func(err error)
+	Finished func()
 }
 
 func (c *PreprocessingCallbacks) onDownloadStarted() {
@@ -250,9 +262,17 @@ func (c *PreprocessingCallbacks) onUnknownMessage(msg ComponentMessage) {
 	}
 }
 
-func (c *PreprocessingCallbacks) onFinished(err error) {
+func (c *PreprocessingCallbacks) onUninterpretedStderr(stderr string) {
+	if c.UninterpretedStderr != nil {
+		c.UninterpretedStderr(stderr)
+	} else {
+		zap.L().Debug("stderr", zap.String("line", stderr))
+	}
+}
+
+func (c *PreprocessingCallbacks) onFinished() {
 	if c.Finished != nil {
-		c.Finished(err)
+		c.Finished()
 	}
 }
 
