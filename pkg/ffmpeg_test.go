@@ -3,6 +3,7 @@ package radiochatter
 import (
 	"context"
 	_ "embed"
+	"os"
 	"path"
 	"strings"
 	"testing"
@@ -15,6 +16,9 @@ import (
 //go:embed stderr.txt
 var stderr string
 
+//go:embed recording.mp3
+var recording []byte
+
 type endPair struct {
 	end      time.Duration
 	duration time.Duration
@@ -23,7 +27,7 @@ type endPair struct {
 func TestParseStderr(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	reader := strings.NewReader(stderr)
-	var cb callbacks
+	var cb eventData
 	parseStderr(logger, reader, cb.Callbacks(t))
 
 	assert.True(t, cb.started)
@@ -46,17 +50,21 @@ func TestParseStderr(t *testing.T) {
 }
 
 func TestRealRecording(t *testing.T) {
+	if testing.Short() {
+		t.SkipNow()
+	}
+
 	logger := zaptest.NewLogger(t)
 	ctx := testContext(t)
-	input := "recording.mp3"
+	input := testRecording(t)
 	temp := t.TempDir()
-	var cb callbacks
+	var e eventData
 
-	err := Preprocess(ctx, logger, input, temp, cb.Callbacks(t))
+	err := Preprocess(ctx, logger, input, temp, e.Callbacks(t))
 
 	assert.NoError(t, err)
 	assert.Equal(t,
-		callbacks{
+		eventData{
 			started: true,
 			writing: []string{
 				path.Join(temp, "output0.mp3"),
@@ -93,7 +101,7 @@ func TestRealRecording(t *testing.T) {
 			},
 			unknown: nil,
 		},
-		cb,
+		e,
 	)
 }
 
@@ -108,7 +116,7 @@ func testContext(t *testing.T) context.Context {
 	return context.Background()
 }
 
-type callbacks struct {
+type eventData struct {
 	started      bool
 	writing      []string
 	silenceStart []time.Duration
@@ -116,22 +124,33 @@ type callbacks struct {
 	unknown      []ComponentMessage
 }
 
-func (c *callbacks) Callbacks(t *testing.T) FfmpegCallbacks {
+func (e *eventData) Callbacks(t *testing.T) PreprocessingCallbacks {
 	t.Helper()
 
-	return FfmpegCallbacks{
-		DownloadStarted: func() { c.started = true },
+	return PreprocessingCallbacks{
+		DownloadStarted: func() { e.started = true },
 		StartWriting: func(path string) {
-			c.writing = append(c.writing, path)
+			e.writing = append(e.writing, path)
 		},
 		SilenceStart: func(t time.Duration) {
-			c.silenceStart = append(c.silenceStart, t)
+			e.silenceStart = append(e.silenceStart, t)
 		},
 		UnknownMessage: func(msg ComponentMessage) {
 			t.Errorf("Unknown message: %#v", msg)
 		},
 		SilenceEnd: func(t, duration time.Duration) {
-			c.silenceEnd = append(c.silenceEnd, endPair{t, duration})
+			e.silenceEnd = append(e.silenceEnd, endPair{t, duration})
 		},
 	}
+}
+
+func testRecording(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	filename := path.Join(dir, "recording.mp3")
+
+	err := os.WriteFile(filename, recording, 0766)
+	assert.NoError(t, err)
+
+	return filename
 }

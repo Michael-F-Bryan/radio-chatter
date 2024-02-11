@@ -37,7 +37,7 @@ var silenceEndPattern = regexp.MustCompile(`silence_end: (\d+(?:\.\d+)?) \| sile
 // etc.) when the context is cancelled. However, if the graceful shutdown
 // doesn't complete within a reasonable amount of time it will be forcefully
 // killed.
-func Preprocess(ctx context.Context, logger *zap.Logger, input string, outputDir string, cb FfmpegCallbacks) error {
+func Preprocess(ctx context.Context, logger *zap.Logger, input string, outputDir string, cb PreprocessingCallbacks) error {
 	args := []string{
 		"-i", input,
 		// Use a filter to detect silence and print its timestamps
@@ -58,7 +58,11 @@ func Preprocess(ctx context.Context, logger *zap.Logger, input string, outputDir
 		return err
 	}
 
-	go parseStderr(logger, stderr, cb)
+	parsingFinished := make(chan struct{})
+	go func() {
+		defer close(parsingFinished)
+		parseStderr(logger, stderr, cb)
+	}()
 
 	// Note: We want to give ffmpeg a chance to flush its buffers and shut down
 	// gracefully, so when the context is cancelled we'll first send a SIGINT,
@@ -81,6 +85,11 @@ func Preprocess(ctx context.Context, logger *zap.Logger, input string, outputDir
 
 	err = cmd.Wait()
 
+	// Note: we want to make sure parsing has finished and no more callbacks are
+	// triggered before returning from this function. That way we don't end
+	// up with any dangling goroutines and everything is deterministic.
+	<-parsingFinished
+
 	// As an edge case, ffmpeg will exit with a 255 exit code when you send it a
 	// SIGINT (e.g. because we told it to shut down). This is an expected
 	// condition, so don't treat it like an error.
@@ -93,7 +102,7 @@ func Preprocess(ctx context.Context, logger *zap.Logger, input string, outputDir
 
 // parseStderr reads the output from ffmpeg and triggers callbacks to notify
 // the caller when certain events occur.
-func parseStderr(logger *zap.Logger, stderr io.Reader, cb FfmpegCallbacks) {
+func parseStderr(logger *zap.Logger, stderr io.Reader, cb PreprocessingCallbacks) {
 	state := state{
 		running: false,
 		cb:      cb,
@@ -111,20 +120,19 @@ func parseStderr(logger *zap.Logger, stderr io.Reader, cb FfmpegCallbacks) {
 				Component: match[1],
 				Payload:   match[2],
 			}
+
 			state.process(msg)
 		} else {
 			logger.Debug("stderr", zap.String("line", line))
 		}
 	}
 
-	if err := buffer.Err(); err != nil {
-		logger.Error("Unable to read stderr", zap.Error(err))
-	}
+	cb.onFinished(buffer.Err())
 }
 
 type state struct {
 	running bool
-	cb      FfmpegCallbacks
+	cb      PreprocessingCallbacks
 	logger  *zap.Logger
 }
 
@@ -173,7 +181,7 @@ func (s *state) process(msg ComponentMessage) {
 		}
 
 	case "out#0/segment":
-		// End of output
+		// End of input
 		return
 	}
 
@@ -186,41 +194,65 @@ type ComponentMessage struct {
 	Payload   string
 }
 
-type FfmpegCallbacks struct {
+// PreprocessingCallbacks are events used to notify the caller when certain
+// preprocessing events occur.
+//
+// Callbacks must be goroutine-safe.
+//
+// Once a call to Preprocess() has completed, no further callbacks will be
+// called.
+type PreprocessingCallbacks struct {
+	// Ffmpeg has started downloading the input file.
 	DownloadStarted func()
+	// The preprocessor has started writing to a new chunk.
 	StartWriting    func(path string)
+	// The start of a silent period has been detected.
+	//
+	// The duration is relative to the start of the input.
 	SilenceStart    func(t time.Duration)
+	// The end of a silent period has been detected.
+	//
+	// The durations are relative to the start of the input.
 	SilenceEnd      func(t time.Duration, duration time.Duration)
+	// An unknown message was encountered.
 	UnknownMessage  func(msg ComponentMessage)
+	// Preprocessing has finished.
+	Finished        func(err error)
 }
 
-func (c *FfmpegCallbacks) onDownloadStarted() {
+func (c *PreprocessingCallbacks) onDownloadStarted() {
 	if c.DownloadStarted != nil {
 		c.DownloadStarted()
 	}
 }
 
-func (c *FfmpegCallbacks) onStartWriting(path string) {
+func (c *PreprocessingCallbacks) onStartWriting(path string) {
 	if c.StartWriting != nil {
 		c.StartWriting(path)
 	}
 }
 
-func (c *FfmpegCallbacks) onSilenceStart(t time.Duration) {
+func (c *PreprocessingCallbacks) onSilenceStart(t time.Duration) {
 	if c.SilenceStart != nil {
 		c.SilenceStart(t)
 	}
 }
 
-func (c *FfmpegCallbacks) onSilenceEnd(t time.Duration, duration time.Duration) {
+func (c *PreprocessingCallbacks) onSilenceEnd(t time.Duration, duration time.Duration) {
 	if c.SilenceEnd != nil {
 		c.SilenceEnd(t, duration)
 	}
 }
 
-func (c *FfmpegCallbacks) onUnknownMessage(msg ComponentMessage) {
+func (c *PreprocessingCallbacks) onUnknownMessage(msg ComponentMessage) {
 	if c.UnknownMessage != nil {
 		c.UnknownMessage(msg)
+	}
+}
+
+func (c *PreprocessingCallbacks) onFinished(err error) {
+	if c.Finished != nil {
+		c.Finished(err)
 	}
 }
 
