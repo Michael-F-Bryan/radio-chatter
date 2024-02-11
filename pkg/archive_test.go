@@ -20,7 +20,7 @@ func TestArchiveRealRecording(t *testing.T) {
 	input := testRecording(t)
 	temp := t.TempDir()
 	ch := make(chan ArchiveOperation)
-	cb := ArchiveCallbacks(ch)
+	cb := archiveCallbacks(ch, dummyNow)
 	go func() {
 		defer close(ch)
 		err := Preprocess(ctx, logger, input, temp, cb)
@@ -35,34 +35,46 @@ func TestArchiveRealRecording(t *testing.T) {
 	assert.Equal(
 		t,
 		[]ArchiveOperation{
-			saveChunk{path: path.Join(temp, "chunk_0.mp3")},
+			saveChunk{
+				path:      path.Join(temp, "chunk_0.mp3"),
+				timestamp: timestamp(0),
+			},
 			splitAudioSnippets{
-				path: path.Join(temp, "chunk_0.mp3"),
+				path:      path.Join(temp, "chunk_0.mp3"),
+				timestamp: timestamp(0),
 				pieces: []audioSpan{
-					{start: 18323800000, end: 22560400000},
-					{start: 26447300000, end: 28632600000},
-					{start: 29799600000, end: 58637000000},
+					{Start: 18323800000, End: 22560400000},
+					{Start: 26447300000, End: 28632600000},
+					{Start: 29799600000, End: 58637000000},
 				},
 			},
-			saveChunk{path: path.Join(temp, "chunk_1.mp3")},
+			saveChunk{
+				path:      path.Join(temp, "chunk_1.mp3"),
+				timestamp: timestamp(60 * time.Second),
+			},
 			splitAudioSnippets{
-				path: path.Join(temp, "chunk_1.mp3"),
+				path:      path.Join(temp, "chunk_1.mp3"),
+				timestamp: timestamp(60 * time.Second),
 				pieces: []audioSpan{
-					{start: 1848000000, end: 9876800000},
-					{start: 11608400000, end: 19490900000},
-					{start: 22476299999, end: 24196100000},
-					{start: 26355800000, end: 31028599999},
-					{start: 32477800000, end: 32998500000},
-					{start: 34763400000, end: 40691000000},
-					{start: 41918000000, end: 60000000000},
+					{Start: 1848000000, End: 9876800000},
+					{Start: 11608400000, End: 19490900000},
+					{Start: 22476299999, End: 24196100000},
+					{Start: 26355800000, End: 31028599999},
+					{Start: 32477800000, End: 32998500000},
+					{Start: 34763400000, End: 40691000000},
+					{Start: 41918000000, End: 60000000000},
 				},
 			},
-			saveChunk{path: path.Join(temp, "chunk_2.mp3")},
+			saveChunk{
+				path:      path.Join(temp, "chunk_2.mp3"),
+				timestamp: timestamp(120 * time.Second),
+			},
 			splitAudioSnippets{
-				path: path.Join(temp, "chunk_2.mp3"),
+				path:      path.Join(temp, "chunk_2.mp3"),
+				timestamp: timestamp(120 * time.Second),
 				pieces: []audioSpan{
-					{start: 0, end: 18446000000},
-					{start: 21415000000, end: 23333000000},
+					{Start: 0, End: 18446000000},
+					{Start: 21415000000, End: 23333000000},
 				},
 			},
 		},
@@ -73,7 +85,7 @@ func TestArchiveRealRecording(t *testing.T) {
 func TestReplayStderrToArchiver(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	ch := make(chan ArchiveOperation, 16)
-	cb := ArchiveCallbacks(ch)
+	cb := archiveCallbacks(ch, dummyNow)
 
 	err := parseStderr(logger, strings.NewReader(stderr), cb)
 
@@ -87,18 +99,26 @@ func TestReplayStderrToArchiver(t *testing.T) {
 	assert.Equal(
 		t,
 		[]ArchiveOperation{
-			saveChunk{path: "output000.mp3"},
+			saveChunk{
+				path:      "output000.mp3",
+				timestamp: timestamp(0),
+			},
 			splitAudioSnippets{
-				path: "output000.mp3",
+				path:      "output000.mp3",
+				timestamp: timestamp(0),
 				pieces: []audioSpan{
-					{start: 19029900000, end: 24462600000},
-					{start: 31306100000, end: 36254100000},
-					{start: 60418600000, end: 60000000000},
+					{Start: 19029900000, End: 24462600000},
+					{Start: 31306100000, End: 36254100000},
+					{Start: 60418600000, End: 60000000000},
 				},
 			},
-			saveChunk{path: "output001.mp3"},
+			saveChunk{
+				path:      "output001.mp3",
+				timestamp: timestamp(60 * time.Second),
+			},
 			splitAudioSnippets{
-				path: "output001.mp3",
+				path:      "output001.mp3",
+				timestamp: timestamp(60 * time.Second),
 				pieces: []audioSpan{
 					{0, 5108099999},
 					{36096400000, 40403000000},
@@ -106,7 +126,10 @@ func TestReplayStderrToArchiver(t *testing.T) {
 					{52502000000, 58398000000},
 				},
 			},
-			saveChunk{path: "output002.mp3"},
+			saveChunk{
+				path:      "output002.mp3",
+				timestamp: timestamp(120 * time.Second),
+			},
 		},
 		ops,
 	)
@@ -114,7 +137,7 @@ func TestReplayStderrToArchiver(t *testing.T) {
 
 func TestJustSilence(t *testing.T) {
 	ch := make(chan ArchiveOperation, 16)
-	cb := ArchiveCallbacks(ch)
+	cb := archiveCallbacks(ch, dummyNow)
 
 	// First we start downloading
 	cb.onDownloadStarted()
@@ -137,8 +160,14 @@ func TestJustSilence(t *testing.T) {
 	assert.Equal(
 		t,
 		[]ArchiveOperation{
-			saveChunk{path: "chunk_0.mp3"},
-			saveChunk{path: "chunk_1.mp3"},
+			saveChunk{
+				path:      "chunk_0.mp3",
+				timestamp: timestamp(0),
+			},
+			saveChunk{
+				path:      "chunk_1.mp3",
+				timestamp: timestamp(60 * time.Second),
+			},
 		},
 		ops,
 	)
@@ -146,7 +175,7 @@ func TestJustSilence(t *testing.T) {
 
 func TestClipContainingAudio(t *testing.T) {
 	ch := make(chan ArchiveOperation, 16)
-	cb := ArchiveCallbacks(ch)
+	cb := archiveCallbacks(ch, dummyNow)
 
 	// First we start downloading
 	cb.onDownloadStarted()
@@ -171,11 +200,15 @@ func TestClipContainingAudio(t *testing.T) {
 	assert.Equal(
 		t,
 		[]ArchiveOperation{
-			saveChunk{path: "chunk_0.mp3"},
+			saveChunk{
+				path:      "chunk_0.mp3",
+				timestamp: timestamp(0),
+			},
 			splitAudioSnippets{
-				path: "chunk_0.mp3",
+				path:      "chunk_0.mp3",
+				timestamp: timestamp(0),
 				pieces: []audioSpan{
-					{start: 10 * time.Second, end: 15 * time.Second},
+					{Start: 10 * time.Second, End: 15 * time.Second},
 				},
 			},
 		},
@@ -185,7 +218,7 @@ func TestClipContainingAudio(t *testing.T) {
 
 func TestAudioInSecondClip(t *testing.T) {
 	ch := make(chan ArchiveOperation, 16)
-	cb := ArchiveCallbacks(ch)
+	cb := archiveCallbacks(ch, dummyNow)
 
 	// First we start downloading
 	cb.onDownloadStarted()
@@ -212,12 +245,19 @@ func TestAudioInSecondClip(t *testing.T) {
 	assert.Equal(
 		t,
 		[]ArchiveOperation{
-			saveChunk{path: "chunk_0.mp3"},
-			saveChunk{path: "chunk_1.mp3"},
+			saveChunk{
+				path:      "chunk_0.mp3",
+				timestamp: timestamp(0),
+			},
+			saveChunk{
+				path:      "chunk_1.mp3",
+				timestamp: timestamp(60 * time.Second),
+			},
 			splitAudioSnippets{
-				path: "chunk_1.mp3",
+				path:      "chunk_1.mp3",
+				timestamp: timestamp(60 * time.Second),
 				pieces: []audioSpan{
-					{start: 5 * time.Second, end: 10 * time.Second},
+					{Start: 5 * time.Second, End: 10 * time.Second},
 				},
 			},
 		},
@@ -227,7 +267,7 @@ func TestAudioInSecondClip(t *testing.T) {
 
 func TestAudioAcrossChunkBoundary(t *testing.T) {
 	ch := make(chan ArchiveOperation, 16)
-	cb := ArchiveCallbacks(ch)
+	cb := archiveCallbacks(ch, dummyNow)
 
 	// First we start downloading
 	cb.onDownloadStarted()
@@ -254,21 +294,42 @@ func TestAudioAcrossChunkBoundary(t *testing.T) {
 	assert.Equal(
 		t,
 		[]ArchiveOperation{
-			saveChunk{path: "chunk_0.mp3"},
+			saveChunk{
+				path:      "chunk_0.mp3",
+				timestamp: timestamp(0),
+			},
 			splitAudioSnippets{
-				path: "chunk_0.mp3",
+				path:      "chunk_0.mp3",
+				timestamp: timestamp(0),
 				pieces: []audioSpan{
-					{start: 50 * time.Second, end: 60 * time.Second},
+					{Start: 50 * time.Second, End: 60 * time.Second},
 				},
 			},
-			saveChunk{path: "chunk_1.mp3"},
+			saveChunk{
+				path:      "chunk_1.mp3",
+				timestamp: timestamp(60 * time.Second),
+			},
 			splitAudioSnippets{
-				path: "chunk_1.mp3",
+				path:      "chunk_1.mp3",
+				timestamp: timestamp(60 * time.Second),
 				pieces: []audioSpan{
-					{start: 0 * time.Second, end: 5 * time.Second},
+					{Start: 0 * time.Second, End: 5 * time.Second},
 				},
 			},
 		},
 		ops,
 	)
+}
+
+// dummyNow returns a stable timestamp that can be used instead of relying on
+// time.Now().
+func dummyNow() time.Time {
+	return time.Time{}
+}
+
+// timestamp returns a time.Time that is a certain amount of time after
+// dummyNow().
+func timestamp(d time.Duration) time.Time {
+	t := time.Time{}
+	return t.Add(d).UTC()
 }

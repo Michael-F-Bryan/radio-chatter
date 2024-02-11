@@ -18,25 +18,40 @@ type ArchiveState struct {
 // ArchiveCallbacks gets a set of PreprocessingCallbacks that will send archiver
 // operations down a channel in response to preprocessing events.
 func ArchiveCallbacks(ch chan<- ArchiveOperation) PreprocessingCallbacks {
-	a := archiver{ch: ch}
+	return archiveCallbacks(ch, time.Now)
+}
+
+func archiveCallbacks(ch chan<- ArchiveOperation, now func() time.Time) PreprocessingCallbacks {
+	a := archiver{
+		ch:  ch,
+		now: now,
+	}
 
 	cb := PreprocessingCallbacks{
-		StartWriting: a.onStartWriting,
-		SilenceStart: a.onSilenceStart,
-		SilenceEnd:   a.onSilenceEnd,
-		Finished:     a.onFinished,
+		DownloadStarted: a.onDownloadStarted,
+		StartWriting:    a.onStartWriting,
+		SilenceStart:    a.onSilenceStart,
+		SilenceEnd:      a.onSilenceEnd,
+		Finished:        a.onFinished,
 	}
 
 	return cb
 }
 
 type archiver struct {
-	currentFile  string
-	fileIndex    int
-	inSilence    bool
-	audioStarted time.Duration
-	spans        []audioSpan
-	ch           chan<- ArchiveOperation
+	ch  chan<- ArchiveOperation
+	now func() time.Time
+
+	currentFile      string
+	recordingStarted time.Time
+	fileIndex        int
+	inSilence        bool
+	audioStarted     time.Duration
+	spans            []audioSpan
+}
+
+func (a *archiver) onDownloadStarted() {
+	a.recordingStarted = a.now()
 }
 
 func (a *archiver) onStartWriting(path string) {
@@ -58,12 +73,12 @@ func (a *archiver) onFinished() {
 func (a *archiver) onSilenceStart(t time.Duration) {
 	startOffset := clipLength * time.Duration(a.fileIndex)
 	span := audioSpan{
-		start: a.audioStarted - startOffset,
-		end:   t - startOffset,
+		Start: a.audioStarted - startOffset,
+		End:   t - startOffset,
 	}
 
 	// Note: We want to ignore tiny spans of audio
-	if span.end-span.start > 10*time.Millisecond {
+	if span.End-span.Start > 10*time.Millisecond {
 		a.spans = append(a.spans, span)
 	}
 
@@ -76,17 +91,21 @@ func (a *archiver) onSilenceEnd(t time.Duration, duration time.Duration) {
 }
 
 func (a *archiver) completeFile(audioMayContinue bool) {
-	a.ch <- saveChunk{a.currentFile}
+	startOffset := clipLength * time.Duration(a.fileIndex)
+	clipStart := a.recordingStarted.Add(startOffset).UTC()
+
+	a.ch <- saveChunk{
+		path:      a.currentFile,
+		timestamp: clipStart,
+	}
 
 	if !a.inSilence && audioMayContinue {
 		// Make sure we handle audio that continues across the end of the
 		// current clip
-		startOffset := clipLength * time.Duration(a.fileIndex)
 		endOfChunk := startOffset + clipLength
-		println(a.audioStarted, startOffset, endOfChunk)
 		span := audioSpan{
-			start: a.audioStarted - startOffset,
-			end:   endOfChunk - startOffset,
+			Start: a.audioStarted - startOffset,
+			End:   endOfChunk - startOffset,
 		}
 		a.spans = append(a.spans, span)
 		// Make sure the next audio clip doesn't include the bits we got
@@ -95,8 +114,9 @@ func (a *archiver) completeFile(audioMayContinue bool) {
 
 	if a.spans != nil {
 		a.ch <- splitAudioSnippets{
-			path:   a.currentFile,
-			pieces: a.spans,
+			path:      a.currentFile,
+			timestamp: clipStart,
+			pieces:    a.spans,
 		}
 		a.spans = nil
 	}
@@ -109,7 +129,8 @@ type ArchiveOperation interface {
 
 // saveChunk takes a chunk of audio and saves it for later retrieval.
 type saveChunk struct {
-	path string
+	path      string
+	timestamp time.Time
 }
 
 func (p saveChunk) String() string {
@@ -133,8 +154,10 @@ func (p saveChunk) Apply(ctx context.Context, state ArchiveState) error {
 }
 
 type splitAudioSnippets struct {
-	path   string
-	pieces []audioSpan
+	path string
+	// When the clip started.
+	timestamp time.Time
+	pieces    []audioSpan
 }
 
 func (s splitAudioSnippets) String() string {
@@ -151,6 +174,6 @@ func (s splitAudioSnippets) Apply(ctx context.Context, state ArchiveState) error
 }
 
 type audioSpan struct {
-	start time.Duration
-	end   time.Duration
+	Start time.Duration
+	End   time.Duration
 }
