@@ -1,12 +1,15 @@
 package radiochatter
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"time"
 
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 // ArchiveState is the state passed to archive operations.
@@ -95,8 +98,8 @@ func (a *archiver) completeFile(audioMayContinue bool) {
 	clipStart := a.recordingStarted.Add(startOffset).UTC()
 
 	a.ch <- saveChunk{
-		path:      a.currentFile,
-		timestamp: clipStart,
+		Path:      a.currentFile,
+		Timestamp: clipStart,
 	}
 
 	if !a.inSilence && audioMayContinue {
@@ -114,9 +117,9 @@ func (a *archiver) completeFile(audioMayContinue bool) {
 
 	if a.spans != nil {
 		a.ch <- splitAudioSnippets{
-			path:      a.currentFile,
-			timestamp: clipStart,
-			pieces:    a.spans,
+			Path:      a.currentFile,
+			Timestamp: clipStart,
+			Pieces:    a.spans,
 		}
 		a.spans = nil
 	}
@@ -129,51 +132,110 @@ type ArchiveOperation interface {
 
 // saveChunk takes a chunk of audio and saves it for later retrieval.
 type saveChunk struct {
-	path      string
-	timestamp time.Time
+	Path string
+	// When the chunk started.
+	Timestamp time.Time
 }
 
 func (p saveChunk) String() string {
-	return fmt.Sprintf("Save %q to blob storage", p.path)
+	return fmt.Sprintf("Save %q to blob storage", p.Path)
 }
 
 func (p saveChunk) Apply(ctx context.Context, state ArchiveState) error {
-	data, err := os.ReadFile(p.path)
+	data, err := os.ReadFile(p.Path)
 	if err != nil {
-		return fmt.Errorf("unable to read %q: %w", p.path, err)
+		return fmt.Errorf("unable to read %q: %w", p.Path, err)
 	}
 
 	key, err := state.Storage.Store(ctx, data)
 	if err != nil {
-		return fmt.Errorf("unable to save %q to blob storage: %w", p.path, err)
+		return fmt.Errorf("unable to save %q to blob storage: %w", p.Path, err)
 	}
 
-	state.Logger.Info("Chunk saved to blob storage", zap.String("path", p.path), zap.Stringer("key", key))
+	state.Logger.Info("Chunk saved to blob storage", zap.String("path", p.Path), zap.Stringer("key", key))
 
 	return nil
 }
 
 type splitAudioSnippets struct {
-	path string
+	Path string
 	// When the clip started.
-	timestamp time.Time
-	pieces    []audioSpan
+	Timestamp time.Time
+	Pieces    []audioSpan
 }
 
 func (s splitAudioSnippets) String() string {
-	return fmt.Sprintf("Split %q into %d snippets of audio", s.path, len(s.pieces))
+	return fmt.Sprintf("Split %q into %d snippets of audio", s.Path, len(s.Pieces))
 }
 
 func (s splitAudioSnippets) Apply(ctx context.Context, state ArchiveState) error {
 	state.Logger.Info(
 		"Splitting",
-		zap.String("path", s.path),
-		zap.Any("snippets", s.pieces),
+		zap.String("path", s.Path),
+		zap.Any("snippets", s.Pieces),
 	)
-	return nil
+
+	group, ctx := errgroup.WithContext(ctx)
+
+	for _, piece := range s.Pieces {
+		group.Go(splitAudio(ctx, state, s.Path, piece))
+	}
+
+	return group.Wait()
+}
+
+func splitAudio(ctx context.Context, state ArchiveState, path string, span audioSpan) func() error {
+	return func() error {
+		args := []string{
+			// Inputs
+			"-i", path,
+			// The segment start
+			"-ss", fmt.Sprint(span.Start.Seconds()),
+			// Time duration
+			"-t", fmt.Sprint(span.Duration().Seconds()),
+			// Reuse the same codec
+			"-acodec", "copy",
+			// We want to write output directly to stdout
+			"-",
+		}
+
+		cmd := exec.CommandContext(ctx, defaultCommand, args...)
+
+		buf := &bytes.Buffer{}
+		cmd.Stdout = buf
+
+		state.Logger.Debug("splitting with ffmpeg", zap.Stringer("cmd", cmd))
+
+		err := cmd.Run()
+		if err != nil {
+			return fmt.Errorf("unable to extract %s from %q: %w", span, path, err)
+		}
+
+		key, err := state.Storage.Store(ctx, buf.Bytes())
+		if err != nil {
+			return fmt.Errorf("unable to store %s from %q: %w", span, path, err)
+		}
+
+		state.Logger.Info(
+			"Wrote transmission to blob storage",
+			zap.Stringer("key", key),
+			zap.String("path", path),
+			zap.Stringer("span", span),
+		)
+
+		return nil
+	}
 }
 
 type audioSpan struct {
 	Start time.Duration
 	End   time.Duration
+}
+
+func (a audioSpan) String() string {
+	return fmt.Sprintf("%s..%s", a.Start.Round(1*time.Millisecond), a.End.Round(1*time.Millisecond))
+}
+
+func (a audioSpan) Duration() time.Duration {
+	return a.End - a.Start
 }
