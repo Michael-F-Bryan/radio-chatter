@@ -69,9 +69,9 @@ func TestRealRecording(t *testing.T) {
 		eventData{
 			started: true,
 			writing: []string{
-				path.Join(temp, "output0.mp3"),
-				path.Join(temp, "output1.mp3"),
-				path.Join(temp, "output2.mp3"),
+				path.Join(temp, "chunk_0.mp3"),
+				path.Join(temp, "chunk_1.mp3"),
+				path.Join(temp, "chunk_2.mp3"),
 			},
 			silenceStart: []time.Duration{
 				0,

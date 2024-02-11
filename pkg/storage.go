@@ -83,6 +83,9 @@ func (s *onDiskStorage) Store(ctx context.Context, blob []byte) (BlobKey, error)
 		zap.String("filename", filename),
 		zap.Stringer("key", key),
 	)
+	// FIXME: Should probably write to a temporary file and move to the final
+	// destination. We might also want to use singleflight so we don't write
+	// to the same file multiple times.
 	if err := os.WriteFile(filename, blob, 0766); err != nil {
 		return BlobKey{}, fmt.Errorf("unable to save to %s: %w", filename, err)
 	}

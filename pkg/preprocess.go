@@ -18,6 +18,7 @@ import (
 const defaultGracefulShutdown = 10 * time.Second
 const defaultCommand = "ffmpeg"
 const FeedUrl = "https://broadcastify.cdnstream1.com/39131"
+const clipLength = 60 * time.Second
 
 // messagePattern will match a string like "[silencedetect @ 0x600000c583c0] ..."
 var messagePattern = regexp.MustCompile(`^\[(\S+) @ [\d\w]+\]\s*(.*)$`)
@@ -43,11 +44,11 @@ func Preprocess(ctx context.Context, logger *zap.Logger, input string, outputDir
 		// Use a filter to detect silence and print its timestamps
 		"-af", "silencedetect=noise=-30dB:d=1",
 		// Split into 60-second chunks
-		"-f", "segment", "-segment_time", "60",
+		"-f", "segment", "-segment_time", strconv.Itoa(int(clipLength) / int(time.Second)),
 		// Clean up stderr so it's easier to parse
 		"-hide_banner", "-nostdin", "-nostats",
 		// the output path
-		path.Join(outputDir, "output%d.mp3"),
+		path.Join(outputDir, "chunk_%d.mp3"),
 	}
 
 	cmd := exec.CommandContext(ctx, defaultCommand, args...)
@@ -78,17 +79,20 @@ func Preprocess(ctx context.Context, logger *zap.Logger, input string, outputDir
 	}
 
 	logger.Debug(
-		"Started ffmpeg",
+		"ffmpeg started",
 		zap.Stringer("cmd", cmd),
 		zap.Int("pid", cmd.Process.Pid),
 	)
 
 	err = cmd.Wait()
 
+	exitCode := cmd.ProcessState.ExitCode()
+	logger.Debug("ffmpeg exited", zap.Int("exit-code", exitCode))
+
 	// As an edge case, ffmpeg will exit with a 255 exit code when you send it a
 	// SIGINT (e.g. because we told it to shut down). This is an expected
 	// condition, so don't treat it like an error.
-	if err != nil && cmd.ProcessState.ExitCode() == 255 {
+	if err != nil && exitCode == 255 {
 		err = nil
 	}
 
@@ -102,7 +106,7 @@ func Preprocess(ctx context.Context, logger *zap.Logger, input string, outputDir
 	// a non-zero exit code. We want to prefer telling users about the latter
 	// because it's probably more actionable.
 	if err != nil {
-		return err
+		return fmt.Errorf("ffmpeg exited unsucessfully: %w", err)
 	} else {
 		return parsingError
 	}
