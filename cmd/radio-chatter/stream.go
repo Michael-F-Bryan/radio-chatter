@@ -17,7 +17,7 @@ func streamCmd() *cobra.Command {
 
 	registerDatabaseFlags(cmd.PersistentFlags())
 
-	cmd.AddCommand(streamListCmd(), streamAddCmd())
+	cmd.AddCommand(streamListCmd(), streamAddCmd(), streamRemoveCmd())
 
 	return cmd
 }
@@ -94,4 +94,38 @@ func streamAdd(cmd *cobra.Command, args []string) {
 			zap.Error(err),
 		)
 	}
+}
+
+func streamRemoveCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "remove",
+		Short: "Delete a stream from the database",
+		Run:   streamRemove,
+		Args:  cobra.ExactArgs(1),
+	}
+
+	return cmd
+}
+
+func streamRemove(cmd *cobra.Command, args []string) {
+	ctx := cmd.Context()
+	logger := zap.L()
+
+	db, err := setupDatabase(ctx, logger)
+	if err != nil {
+		logger.Fatal("Unable to initialize the database", zap.Error(err))
+	}
+
+	displayName := args[0]
+
+	stream := radiochatter.Stream{DisplayName: displayName}
+
+	if err := db.Delete(&stream).Error; err != nil {
+		logger.Fatal(
+			"Unable to delete the stream",
+			zap.Error(err),
+		)
+	}
+
+	_ = Format.Print(os.Stdout, stream)
 }
