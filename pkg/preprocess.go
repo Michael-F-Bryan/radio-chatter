@@ -30,7 +30,8 @@ var silenceStartPattern = regexp.MustCompile(`silence_start: (\d+(?:\.\d+)?)`)
 var silenceEndPattern = regexp.MustCompile(`silence_end: (\d+(?:\.\d+)?) \| silence_duration: (\d+(?:\.\d+)?)`)
 
 // Preprocess will take some ffmpeg input and split it into 60-second chunks,
-// saved in the provided directory.
+// saved in the provided directory. The caller will be notified when certain
+// events occur via the preprocessing callbacks.
 //
 // The input may be a URL or a filename.
 //

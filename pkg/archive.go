@@ -12,12 +12,15 @@ import (
 
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
+	"gorm.io/gorm"
 )
 
 // ArchiveState is the state passed to archive operations.
 type ArchiveState struct {
 	Logger  *zap.Logger
 	Storage BlobStorage
+	DB      *gorm.DB
+	Stream  Stream
 }
 
 // ArchiveCallbacks gets a set of PreprocessingCallbacks that will send archiver
