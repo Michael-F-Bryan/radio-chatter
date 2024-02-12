@@ -15,9 +15,10 @@ var ConnectionString string
 
 func registerDatabaseFlags(flags *pflag.FlagSet) {
 	flags.StringVar(&ConnectionString, "db", "radio-chatter.sqlite3", "The database to save to")
-	viper.BindPFlag("db", flags.Lookup("db"))
+	_ = viper.BindPFlag("DB_SOURCE", flags.Lookup("db"))
+
 	flags.StringVar(&DbDriver, "db-driver", "sqlite3", "Which database type to use")
-	viper.BindPFlag("db-driver", flags.Lookup("db-driver"))
+	_ = viper.BindPFlag("DB_DRIVER", flags.Lookup("db-driver"))
 }
 
 func setupDatabase(ctx context.Context, logger *zap.Logger) (*gorm.DB, error) {

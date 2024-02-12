@@ -18,14 +18,21 @@ func StartProcessing(
 	stream Stream,
 	storage BlobStorage,
 	db *gorm.DB,
-) {
+) (cleanup func()) {
 	archiveOps := make(chan ArchiveOperation)
 
 	temp, cleanup := mkdtemp(logger)
-	defer cleanup()
+	logger.Debug(
+		"Saving clips to a temporary directory",
+		zap.String("path", temp),
+		zap.Uint("stream-id", stream.ID),
+		zap.String("stream-name", stream.DisplayName),
+	)
 
 	group.Go(preprocess(ctx, logger.Named("preprocess"), stream.Url, temp, archiveOps))
 	group.Go(archive(ctx, logger.Named("archive"), archiveOps, storage, db, stream))
+
+	return cleanup
 }
 
 func archive(
@@ -84,7 +91,6 @@ func mkdtemp(logger *zap.Logger) (string, context.CancelFunc) {
 	if err != nil {
 		logger.Fatal("Unable to create a temporary directory", zap.Error(err))
 	}
-	logger.Debug("Saving clips to a temporary directory", zap.String("path", dir))
 	cancel := func() {
 		if err := os.RemoveAll(dir); err != nil {
 			logger.Error(

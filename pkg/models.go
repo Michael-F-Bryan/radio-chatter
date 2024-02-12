@@ -16,7 +16,7 @@ import (
 type Stream struct {
 	gorm.Model
 	// The human-friendly name for this stream.
-	DisplayName string
+	DisplayName string `gorm:"unique"`
 	// A URL that can be passed to ffmpeg to download the stream.
 	Url string
 	// Downloaded chunks.

@@ -15,7 +15,6 @@ import (
 )
 
 var DevMode bool
-var Output = TextFormat
 
 func rootCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -26,11 +25,13 @@ func rootCmd() *cobra.Command {
 		PersistentPostRun: afterAll,
 	}
 
-	cmd.AddCommand(downloadCmd())
+	cmd.AddCommand(downloadCmd(), streamCmd())
 
 	flags := cmd.PersistentFlags()
 	flags.BoolVarP(&DevMode, "dev", "d", false, "Run the application in dev mode")
 	_ = viper.BindPFlag("dev", flags.Lookup("dev"))
+
+	registerFormatFlags(cmd.PersistentFlags())
 
 	return cmd
 }
@@ -55,13 +56,16 @@ func beforeAll(cmd *cobra.Command, args []string) {
 		cancel()
 	}()
 
-	viper.SetEnvPrefix("rc")
+	viper.SetConfigName("radio-chatter")
+	viper.AddConfigPath(".")
 	viper.AutomaticEnv()
 
 	if userConfigDir, err := os.UserConfigDir(); err == nil {
 		configDir := path.Join(userConfigDir, radiochatter.PackageIdentifier)
 		viper.AddConfigPath(configDir)
 	}
+
+	_ = viper.ReadInConfig()
 }
 
 func initializeLogger() {

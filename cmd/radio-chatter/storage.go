@@ -14,7 +14,7 @@ var StorageDir string
 
 func registerStorageFlags(flags *pflag.FlagSet) {
 	flags.StringVarP(&StorageDir, "blob", "b", "", "Blob storage (user's cache dir by default)")
-	viper.BindPFlag("blob", flags.Lookup("blob"))
+	_ = viper.BindPFlag("blob", flags.Lookup("blob"))
 }
 
 func setupStorage(logger *zap.Logger) radiochatter.BlobStorage {

@@ -9,8 +9,9 @@ import (
 
 func downloadCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "download",
-		Run: download,
+		Use:   "download",
+		Short: "Download and archive all streams",
+		Run:   download,
 	}
 
 	registerDatabaseFlags(cmd.Flags())
@@ -37,7 +38,8 @@ func download(cmd *cobra.Command, args []string) {
 	}
 
 	for _, stream := range streams {
-		radiochatter.StartProcessing(ctx, logger, group, stream, storage, db)
+		cleanup := radiochatter.StartProcessing(ctx, logger, group, stream, storage, db)
+		defer cleanup()
 	}
 
 	defer logger.Info("Exit")
