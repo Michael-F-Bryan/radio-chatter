@@ -82,6 +82,7 @@ func (s *onDiskStorage) Store(ctx context.Context, blob []byte) (BlobKey, error)
 		"Saving blob",
 		zap.String("filename", filename),
 		zap.Stringer("key", key),
+		zap.Int("bytes", len(blob)),
 	)
 	// FIXME: Should probably write to a temporary file and move to the final
 	// destination. We might also want to use singleflight so we don't write

@@ -206,13 +206,27 @@ func splitAudio(ctx context.Context, state ArchiveState, path string, span audio
 			}
 		}()
 
+		buffer := 100 * time.Millisecond
+		segmentStart := span.Start
+		duration := span.Duration()
+
+		if segmentStart > buffer {
+			// Add a bit of space at the start and end of the clip so it doesn't
+			// sound like it's been cut off.
+			segmentStart -= buffer
+			duration += 2 * buffer
+		}
+
+		segmentStart = segmentStart.Round(time.Millisecond)
+		duration = duration.Round(time.Millisecond)
+
 		args := []string{
 			// Inputs
 			"-i", path,
 			// The segment start
-			"-ss", fmt.Sprint(span.Start.Round(time.Millisecond).Seconds()),
+			"-ss", fmt.Sprint(segmentStart.Seconds()),
 			// Time duration
-			"-t", fmt.Sprint(span.Duration().Round(time.Millisecond).Seconds()),
+			"-t", fmt.Sprint(duration.Seconds()),
 			// Reuse the same codec
 			"-acodec", "copy",
 			// Clean up the output so it's easier to troubleshoot
