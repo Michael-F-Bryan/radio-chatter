@@ -25,7 +25,7 @@ func setupStorage(logger *zap.Logger) radiochatter.BlobStorage {
 		if err != nil {
 			logger.Error("Unable to get the user's cache directory", zap.Error(err))
 		}
-		baseDir = path.Join(cacheDir, "radio-chatter", "clips")
+		baseDir = path.Join(cacheDir, "radio-chatter", "blob-storage")
 	}
 
 	return radiochatter.NewOnDiskStorage(logger, baseDir)

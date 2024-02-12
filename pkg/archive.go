@@ -163,10 +163,11 @@ func (a ArchiveOperation) Execute(ctx context.Context, state ArchiveState) error
 	state.Logger.Info(
 		"Saved chunk",
 		zap.String("path", a.Path),
+		zap.Int("bytes", len(data)),
 		zap.Any("chunk", chunk),
 	)
 
-	state.Logger.Info(
+	state.Logger.Debug(
 		"Splitting",
 		zap.String("path", a.Path),
 		zap.Any("snippets", a.Pieces),

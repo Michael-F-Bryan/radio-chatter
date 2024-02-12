@@ -1,0 +1,73 @@
+# GraphQL schema example
+#
+# https://gqlgen.com/getting-started/
+
+"""
+A RFC3339 timestamp (e.g. "2006-01-02T15:04:05.999999999Z07:00").
+"""
+scalar Time
+
+type PageInfo {
+  hasNextPage: Boolean!
+  endCursor: ID
+}
+
+interface Node {
+  id: ID!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type Stream implements Node {
+  id: ID!
+  createdAt: Time!
+  updatedAt: Time!
+
+  displayName: String!
+  url: String!
+  chunks(after: ID, count: Int! = 100): ChunksConnection!
+}
+
+type ChunksConnection {
+  edges: [Chunk!]!
+  pageInfo: PageInfo!
+}
+
+type Chunk implements Node {
+  id: ID!
+  createdAt: Time!
+  updatedAt: Time!
+
+  timestamp: Time!
+  sha256: String!
+  # stream: Stream!
+  transmissions(after: ID, count: Int! = 100): TransmissionsConnection!
+}
+
+type TransmissionsConnection {
+  edges: [Transmission!]!
+  pageInfo: PageInfo!
+}
+
+type Transmission implements Node {
+  id: ID!
+  createdAt: Time!
+  updatedAt: Time!
+
+  timestamp: Time!
+  length: Float!
+  sha256: String!
+  # chunk: Chunk!
+  content: String
+}
+
+type StreamsConnection {
+  edges: [Stream!]!
+  pageInfo: PageInfo!
+}
+
+type Query {
+  streams(after: ID, count: Int! = 10): StreamsConnection
+}
+
+# type Mutation { }

@@ -35,10 +35,7 @@ func streamListCmd() *cobra.Command {
 func streamList(ctx context.Context) {
 	logger := zap.L()
 
-	db, err := setupDatabase(ctx, logger)
-	if err != nil {
-		logger.Fatal("Unable to initialize the database", zap.Error(err))
-	}
+	db := setupDatabase(ctx, logger)
 
 	var streams []radiochatter.Stream
 
@@ -66,17 +63,11 @@ func streamAdd(cmd *cobra.Command, args []string) {
 	ctx := cmd.Context()
 	logger := zap.L()
 
-	db, err := setupDatabase(ctx, logger)
-	if err != nil {
-		logger.Fatal("Unable to initialize the database", zap.Error(err))
-	}
-
-	displayName := args[0]
-	url := args[1]
+	db := setupDatabase(ctx, logger)
 
 	stream := radiochatter.Stream{
-		DisplayName: displayName,
-		Url:         url,
+		DisplayName: args[0],
+		Url:         args[1],
 	}
 
 	if err := db.Save(&stream).Error; err != nil {
@@ -111,14 +102,9 @@ func streamRemove(cmd *cobra.Command, args []string) {
 	ctx := cmd.Context()
 	logger := zap.L()
 
-	db, err := setupDatabase(ctx, logger)
-	if err != nil {
-		logger.Fatal("Unable to initialize the database", zap.Error(err))
-	}
+	db := setupDatabase(ctx, logger)
 
-	displayName := args[0]
-
-	stream := radiochatter.Stream{DisplayName: displayName}
+	stream := radiochatter.Stream{DisplayName: args[0]}
 
 	if err := db.Delete(&stream).Error; err != nil {
 		logger.Fatal(

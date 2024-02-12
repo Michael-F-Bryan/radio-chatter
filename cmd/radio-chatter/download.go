@@ -27,10 +27,7 @@ func download(cmd *cobra.Command, args []string) {
 	group, ctx := errgroup.WithContext(ctx)
 	storage := setupStorage(logger.Named("storage"))
 
-	db, err := setupDatabase(ctx, logger)
-	if err != nil {
-		logger.Fatal("Unable to initialize the database", zap.Error(err))
-	}
+	db := setupDatabase(ctx, logger)
 
 	var streams []radiochatter.Stream
 	if err := db.Find(&streams).Error; err != nil {
