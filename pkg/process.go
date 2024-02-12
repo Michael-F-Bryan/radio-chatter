@@ -59,9 +59,9 @@ func archive(
 					return nil
 				}
 
-				logger.Debug("executing", zap.Stringer("description", op), zap.Reflect("op", op))
+				logger.Debug("executing", zap.Reflect("op", op))
 
-				if err := op.Apply(ctx, state); err != nil {
+				if err := op.Execute(ctx, state); err != nil {
 					return err
 				}
 			case <-ctx.Done():

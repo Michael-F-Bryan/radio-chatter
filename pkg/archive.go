@@ -60,13 +60,6 @@ type archiver struct {
 	spans            []audioSpan
 }
 
-func (a *archiver) emit(op ArchiveOperation) {
-	select {
-	case a.ch <- op:
-	case <-a.ctx.Done():
-	}
-}
-
 func (a *archiver) onDownloadStarted() {
 	a.recordingStarted = a.now()
 }
@@ -111,7 +104,10 @@ func (a *archiver) completeFile(audioMayContinue bool) {
 	startOffset := clipLength * time.Duration(a.fileIndex)
 	clipStart := a.recordingStarted.Add(startOffset).UTC()
 
-	a.emit(saveChunk{Path: a.currentFile, Timestamp: clipStart})
+	op := ArchiveOperation{
+		Path:      a.currentFile,
+		Timestamp: clipStart,
+	}
 
 	if !a.inSilence && audioMayContinue {
 		// Make sure we handle audio that continues across the end of the
@@ -127,76 +123,74 @@ func (a *archiver) completeFile(audioMayContinue bool) {
 	}
 
 	if a.spans != nil {
-		op := splitAudioSnippets{
-			Path:      a.currentFile,
-			Timestamp: clipStart,
-			Pieces:    a.spans,
-		}
-		a.emit(op)
+		op.Pieces = a.spans
 		a.spans = nil
 	}
+
+	select {
+	case a.ch <- op:
+	case <-a.ctx.Done():
+	}
 }
 
-type ArchiveOperation interface {
-	fmt.Stringer
-	Apply(ctx context.Context, state ArchiveState) error
-}
-
-// saveChunk takes a chunk of audio and saves it for later retrieval.
-type saveChunk struct {
+type ArchiveOperation struct {
 	Path string
 	// When the chunk started.
-	Timestamp time.Time
-}
-
-func (p saveChunk) String() string {
-	return fmt.Sprintf("Save %q to blob storage", p.Path)
-}
-
-func (p saveChunk) Apply(ctx context.Context, state ArchiveState) error {
-	data, err := os.ReadFile(p.Path)
-	if err != nil {
-		return fmt.Errorf("unable to read %q: %w", p.Path, err)
-	}
-
-	key, err := state.Storage.Store(ctx, data)
-	if err != nil {
-		return fmt.Errorf("unable to save %q to blob storage: %w", p.Path, err)
-	}
-
-	state.Logger.Info("Chunk saved to blob storage", zap.String("path", p.Path), zap.Stringer("key", key))
-
-	return nil
-}
-
-type splitAudioSnippets struct {
-	Path string
-	// When the clip started.
 	Timestamp time.Time
 	Pieces    []audioSpan
 }
 
-func (s splitAudioSnippets) String() string {
-	return fmt.Sprintf("Split %q into %d snippets of audio", s.Path, len(s.Pieces))
-}
+func (a ArchiveOperation) Execute(ctx context.Context, state ArchiveState) error {
+	data, err := os.ReadFile(a.Path)
+	if err != nil {
+		return fmt.Errorf("unable to read %q: %w", a.Path, err)
+	}
 
-func (s splitAudioSnippets) Apply(ctx context.Context, state ArchiveState) error {
+	key, err := state.Storage.Store(ctx, data)
+	if err != nil {
+		return fmt.Errorf("unable to save %q to blob storage: %w", a.Path, err)
+	}
+
+	chunk := Chunk{
+		TimeStamp: a.Timestamp,
+		Sha256:    key.String(),
+		StreamID:  state.Stream.ID,
+	}
+	if err := state.DB.Save(&chunk).Error; err != nil {
+		return fmt.Errorf("unable to save the chunk for %q (%s): %w", a.Path, key, err)
+	}
+
+	state.Logger.Info(
+		"Saved chunk",
+		zap.String("path", a.Path),
+		zap.Any("chunk", chunk),
+	)
+
 	state.Logger.Info(
 		"Splitting",
-		zap.String("path", s.Path),
-		zap.Any("snippets", s.Pieces),
+		zap.String("path", a.Path),
+		zap.Any("snippets", a.Pieces),
 	)
 
 	group, ctx := errgroup.WithContext(ctx)
 
-	for _, piece := range s.Pieces {
-		group.Go(splitAudio(ctx, state, s.Path, piece))
+	for _, piece := range a.Pieces {
+		group.Go(splitAudio(ctx, state, a.Path, piece, chunk))
 	}
 
-	return group.Wait()
+	if err := group.Wait(); err != nil {
+		return fmt.Errorf("unable to split audio: %w", err)
+	}
+
+	state.Logger.Debug("Deleting original chunk file", zap.String("path", a.Path))
+	if err := os.Remove(a.Path); err != nil {
+		return fmt.Errorf("unable to delete %q: %w", a.Path, err)
+	}
+
+	return nil
 }
 
-func splitAudio(ctx context.Context, state ArchiveState, path string, span audioSpan) func() error {
+func splitAudio(ctx context.Context, state ArchiveState, path string, span audioSpan, chunk Chunk) func() error {
 	return func() error {
 		tmp := filepath.Join(os.TempDir(), fmt.Sprintf("split-%d.mp3", rand.Int63()))
 		defer func() {
@@ -273,11 +267,20 @@ func splitAudio(ctx context.Context, state ArchiveState, path string, span audio
 			return fmt.Errorf("unable to store %s from %q: %w", span, path, err)
 		}
 
+		transmission := Transmission{
+			TimeStamp: chunk.TimeStamp.Add(span.Start),
+			Length:    span.Duration(),
+			Sha256:    key.String(),
+			ChunkID:   chunk.ID,
+		}
+
+		if err := state.DB.Save(&transmission).Error; err != nil {
+			return fmt.Errorf("unable to save transmission: %w", err)
+		}
+
 		state.Logger.Info(
-			"Wrote transmission to blob storage",
-			zap.Stringer("key", key),
-			zap.String("path", path),
-			zap.Stringer("span", span),
+			"Saved transmission",
+			zap.Any("transmission", transmission),
 			zap.Int("bytes", len(buf)),
 		)
 

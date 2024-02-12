@@ -1,13 +1,18 @@
 package radiochatter
 
 import (
+	"context"
 	"path"
+	"sort"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap/zaptest"
+	"golang.org/x/sync/errgroup"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 func TestArchiveRealRecording(t *testing.T) {
@@ -35,11 +40,7 @@ func TestArchiveRealRecording(t *testing.T) {
 	assert.Equal(
 		t,
 		[]ArchiveOperation{
-			saveChunk{
-				Path:      path.Join(temp, "chunk_0.mp3"),
-				Timestamp: timestamp(0),
-			},
-			splitAudioSnippets{
+			{
 				Path:      path.Join(temp, "chunk_0.mp3"),
 				Timestamp: timestamp(0),
 				Pieces: []audioSpan{
@@ -48,11 +49,7 @@ func TestArchiveRealRecording(t *testing.T) {
 					{Start: 29799600000, End: 58637000000},
 				},
 			},
-			saveChunk{
-				Path:      path.Join(temp, "chunk_1.mp3"),
-				Timestamp: timestamp(60 * time.Second),
-			},
-			splitAudioSnippets{
+			{
 				Path:      path.Join(temp, "chunk_1.mp3"),
 				Timestamp: timestamp(60 * time.Second),
 				Pieces: []audioSpan{
@@ -65,11 +62,7 @@ func TestArchiveRealRecording(t *testing.T) {
 					{Start: 41918000000, End: 60000000000},
 				},
 			},
-			saveChunk{
-				Path:      path.Join(temp, "chunk_2.mp3"),
-				Timestamp: timestamp(120 * time.Second),
-			},
-			splitAudioSnippets{
+			{
 				Path:      path.Join(temp, "chunk_2.mp3"),
 				Timestamp: timestamp(120 * time.Second),
 				Pieces: []audioSpan{
@@ -100,11 +93,7 @@ func TestReplayStderrToArchiver(t *testing.T) {
 	assert.Equal(
 		t,
 		[]ArchiveOperation{
-			saveChunk{
-				Path:      "output000.mp3",
-				Timestamp: timestamp(0),
-			},
-			splitAudioSnippets{
+			{
 				Path:      "output000.mp3",
 				Timestamp: timestamp(0),
 				Pieces: []audioSpan{
@@ -113,11 +102,7 @@ func TestReplayStderrToArchiver(t *testing.T) {
 					{Start: 60418600000, End: 60000000000},
 				},
 			},
-			saveChunk{
-				Path:      "output001.mp3",
-				Timestamp: timestamp(60 * time.Second),
-			},
-			splitAudioSnippets{
+			{
 				Path:      "output001.mp3",
 				Timestamp: timestamp(60 * time.Second),
 				Pieces: []audioSpan{
@@ -127,7 +112,7 @@ func TestReplayStderrToArchiver(t *testing.T) {
 					{52502000000, 58398000000},
 				},
 			},
-			saveChunk{
+			{
 				Path:      "output002.mp3",
 				Timestamp: timestamp(120 * time.Second),
 			},
@@ -162,11 +147,11 @@ func TestJustSilence(t *testing.T) {
 	assert.Equal(
 		t,
 		[]ArchiveOperation{
-			saveChunk{
+			{
 				Path:      "chunk_0.mp3",
 				Timestamp: timestamp(0),
 			},
-			saveChunk{
+			{
 				Path:      "chunk_1.mp3",
 				Timestamp: timestamp(60 * time.Second),
 			},
@@ -203,11 +188,7 @@ func TestClipContainingAudio(t *testing.T) {
 	assert.Equal(
 		t,
 		[]ArchiveOperation{
-			saveChunk{
-				Path:      "chunk_0.mp3",
-				Timestamp: timestamp(0),
-			},
-			splitAudioSnippets{
+			{
 				Path:      "chunk_0.mp3",
 				Timestamp: timestamp(0),
 				Pieces: []audioSpan{
@@ -249,15 +230,11 @@ func TestAudioInSecondClip(t *testing.T) {
 	assert.Equal(
 		t,
 		[]ArchiveOperation{
-			saveChunk{
+			{
 				Path:      "chunk_0.mp3",
 				Timestamp: timestamp(0),
 			},
-			saveChunk{
-				Path:      "chunk_1.mp3",
-				Timestamp: timestamp(60 * time.Second),
-			},
-			splitAudioSnippets{
+			{
 				Path:      "chunk_1.mp3",
 				Timestamp: timestamp(60 * time.Second),
 				Pieces: []audioSpan{
@@ -299,22 +276,14 @@ func TestAudioAcrossChunkBoundary(t *testing.T) {
 	assert.Equal(
 		t,
 		[]ArchiveOperation{
-			saveChunk{
-				Path:      "chunk_0.mp3",
-				Timestamp: timestamp(0),
-			},
-			splitAudioSnippets{
+			{
 				Path:      "chunk_0.mp3",
 				Timestamp: timestamp(0),
 				Pieces: []audioSpan{
 					{Start: 50 * time.Second, End: 60 * time.Second},
 				},
 			},
-			saveChunk{
-				Path:      "chunk_1.mp3",
-				Timestamp: timestamp(60 * time.Second),
-			},
-			splitAudioSnippets{
+			{
 				Path:      "chunk_1.mp3",
 				Timestamp: timestamp(60 * time.Second),
 				Pieces: []audioSpan{
@@ -337,4 +306,48 @@ func dummyNow() time.Time {
 func timestamp(d time.Duration) time.Time {
 	t := time.Time{}
 	return t.Add(d).UTC()
+}
+
+func TestSplitAndArchiveRecording(t *testing.T) {
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	logger := zaptest.NewLogger(t)
+	ctx := testContext(t)
+	group, ctx := errgroup.WithContext(ctx)
+	db := testDatabase(ctx, t)
+	stream := Stream{DisplayName: "Test", Url: testRecording(t)}
+	assert.NoError(t, db.Save(&stream).Error)
+	storage := NewOnDiskStorage(logger, t.TempDir())
+
+	archiveOps := make(chan ArchiveOperation)
+	temp, cleanup := mkdtemp(logger)
+	defer cleanup()
+	group.Go(preprocess(ctx, logger.Named("preprocess"), stream.Url, temp, archiveOps))
+	group.Go(archive(ctx, logger.Named("archive"), archiveOps, storage, db, stream))
+	assert.NoError(t, group.Wait())
+
+	assert.NoError(t, db.Preload("Chunks").Preload("Chunks.Transmissions").Find(&stream).Error)
+	assert.Equal(t, 3, len(stream.Chunks))
+	transmisions := stream.Chunks[1].Transmissions
+	assert.Equal(t, 7, len(transmisions))
+	sort.Slice(transmisions, func(i, j int) bool {return transmisions[i].TimeStamp.Before(transmisions[j].TimeStamp)})
+	transmission := stream.Chunks[1].Transmissions[0]
+	assert.Equal(t, "7d865c69589b323c95dcb2c5aab008559efcfe226284aa8a70db5d0c01f04e71", transmission.Sha256)
+	assert.Equal(t, stream.Chunks[1].ID, transmission.ChunkID)
+	assert.Equal(t, 8028800* time.Microsecond, transmission.Length)
+}
+
+func testDatabase(ctx context.Context, t *testing.T) *gorm.DB {
+	t.Helper()
+
+	filename := path.Join(t.TempDir(), "db.sqlite3")
+
+	db, err := gorm.Open(sqlite.Open(filename))
+	assert.NoError(t, err)
+
+	assert.NoError(t, Migrate(ctx, db))
+
+	return db
 }
