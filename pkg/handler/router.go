@@ -17,7 +17,7 @@ func Router(logger *zap.Logger, db *gorm.DB) http.Handler {
 
 	r.Path("/graphql").Methods(http.MethodGet).Handler(playground.Handler("GraphQL playground", "/graphql"))
 
-	srv := handler.NewDefaultServer(graphql.NewExecutableSchema(graphql.Config{Resolvers: &graphql.Resolver{}}))
+	srv := handler.NewDefaultServer(graphql.NewExecutableSchema(graphql.Config{Resolvers: &graphql.Resolver{DB: db}}))
 	r.Path("/graphql").Methods(http.MethodPost).Handler(srv)
 
 	r.Path("/graphql/schema.graphql").Methods(http.MethodGet).HandlerFunc(graphqlSchema)

@@ -19,6 +19,7 @@ type Chunk struct {
 	UpdatedAt     time.Time                `json:"updatedAt"`
 	Timestamp     time.Time                `json:"timestamp"`
 	Sha256        string                   `json:"sha256"`
+	DownloadURL   *string                  `json:"downloadUrl,omitempty"`
 	Transmissions *TransmissionsConnection `json:"transmissions"`
 }
 
@@ -28,12 +29,13 @@ func (this Chunk) GetCreatedAt() time.Time { return this.CreatedAt }
 func (this Chunk) GetUpdatedAt() time.Time { return this.UpdatedAt }
 
 type ChunksConnection struct {
-	Edges    []Chunk   `json:"edges"`
+	Edges    []Chunk   `json:"edges,omitempty"`
 	PageInfo *PageInfo `json:"pageInfo"`
 }
 
 type PageInfo struct {
 	HasNextPage bool    `json:"hasNextPage"`
+	Length      int     `json:"length"`
 	EndCursor   *string `json:"endCursor,omitempty"`
 }
 
@@ -55,18 +57,19 @@ func (this Stream) GetCreatedAt() time.Time { return this.CreatedAt }
 func (this Stream) GetUpdatedAt() time.Time { return this.UpdatedAt }
 
 type StreamsConnection struct {
-	Edges    []Stream  `json:"edges"`
+	Edges    []Stream  `json:"edges,omitempty"`
 	PageInfo *PageInfo `json:"pageInfo"`
 }
 
 type Transmission struct {
-	ID        string    `json:"id"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
-	Timestamp time.Time `json:"timestamp"`
-	Length    float64   `json:"length"`
-	Sha256    string    `json:"sha256"`
-	Content   *string   `json:"content,omitempty"`
+	ID          string    `json:"id"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+	Timestamp   time.Time `json:"timestamp"`
+	Length      float64   `json:"length"`
+	Sha256      string    `json:"sha256"`
+	DownloadURL *string   `json:"downloadUrl,omitempty"`
+	Content     *string   `json:"content,omitempty"`
 }
 
 func (Transmission) IsNode()                      {}
@@ -75,6 +78,6 @@ func (this Transmission) GetCreatedAt() time.Time { return this.CreatedAt }
 func (this Transmission) GetUpdatedAt() time.Time { return this.UpdatedAt }
 
 type TransmissionsConnection struct {
-	Edges    []Transmission `json:"edges"`
+	Edges    []Transmission `json:"edges,omitempty"`
 	PageInfo *PageInfo      `json:"pageInfo"`
 }

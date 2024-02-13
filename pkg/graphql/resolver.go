@@ -12,5 +12,5 @@ import (
 var Schema string
 
 type Resolver struct {
-	db *gorm.DB
+	DB *gorm.DB
 }

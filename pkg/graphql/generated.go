@@ -40,7 +40,10 @@ type Config struct {
 }
 
 type ResolverRoot interface {
+	Chunk() ChunkResolver
 	Query() QueryResolver
+	Stream() StreamResolver
+	Transmission() TransmissionResolver
 }
 
 type DirectiveRoot struct {
@@ -49,6 +52,7 @@ type DirectiveRoot struct {
 type ComplexityRoot struct {
 	Chunk struct {
 		CreatedAt     func(childComplexity int) int
+		DownloadURL   func(childComplexity int) int
 		ID            func(childComplexity int) int
 		Sha256        func(childComplexity int) int
 		Timestamp     func(childComplexity int) int
@@ -64,10 +68,14 @@ type ComplexityRoot struct {
 	PageInfo struct {
 		EndCursor   func(childComplexity int) int
 		HasNextPage func(childComplexity int) int
+		Length      func(childComplexity int) int
 	}
 
 	Query struct {
-		Streams func(childComplexity int, after *string, count int) int
+		GetChunkByID        func(childComplexity int, id string) int
+		GetStreamByID       func(childComplexity int, id string) int
+		GetStreams          func(childComplexity int, after *string, count int) int
+		GetTransmissionByID func(childComplexity int, id string) int
 	}
 
 	Stream struct {
@@ -85,13 +93,14 @@ type ComplexityRoot struct {
 	}
 
 	Transmission struct {
-		Content   func(childComplexity int) int
-		CreatedAt func(childComplexity int) int
-		ID        func(childComplexity int) int
-		Length    func(childComplexity int) int
-		Sha256    func(childComplexity int) int
-		Timestamp func(childComplexity int) int
-		UpdatedAt func(childComplexity int) int
+		Content     func(childComplexity int) int
+		CreatedAt   func(childComplexity int) int
+		DownloadURL func(childComplexity int) int
+		ID          func(childComplexity int) int
+		Length      func(childComplexity int) int
+		Sha256      func(childComplexity int) int
+		Timestamp   func(childComplexity int) int
+		UpdatedAt   func(childComplexity int) int
 	}
 
 	TransmissionsConnection struct {
@@ -100,8 +109,21 @@ type ComplexityRoot struct {
 	}
 }
 
+type ChunkResolver interface {
+	DownloadURL(ctx context.Context, obj *model.Chunk) (*string, error)
+	Transmissions(ctx context.Context, obj *model.Chunk, after *string, count int) (*model.TransmissionsConnection, error)
+}
 type QueryResolver interface {
-	Streams(ctx context.Context, after *string, count int) (*model.StreamsConnection, error)
+	GetStreams(ctx context.Context, after *string, count int) (*model.StreamsConnection, error)
+	GetStreamByID(ctx context.Context, id string) (*model.Stream, error)
+	GetChunkByID(ctx context.Context, id string) (*model.Chunk, error)
+	GetTransmissionByID(ctx context.Context, id string) (*model.Transmission, error)
+}
+type StreamResolver interface {
+	Chunks(ctx context.Context, obj *model.Stream, after *string, count int) (*model.ChunksConnection, error)
+}
+type TransmissionResolver interface {
+	DownloadURL(ctx context.Context, obj *model.Transmission) (*string, error)
 }
 
 type executableSchema struct {
@@ -129,6 +151,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Chunk.CreatedAt(childComplexity), true
+
+	case "Chunk.downloadUrl":
+		if e.complexity.Chunk.DownloadURL == nil {
+			break
+		}
+
+		return e.complexity.Chunk.DownloadURL(childComplexity), true
 
 	case "Chunk.id":
 		if e.complexity.Chunk.ID == nil {
@@ -198,17 +227,60 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.PageInfo.HasNextPage(childComplexity), true
 
-	case "Query.streams":
-		if e.complexity.Query.Streams == nil {
+	case "PageInfo.length":
+		if e.complexity.PageInfo.Length == nil {
 			break
 		}
 
-		args, err := ec.field_Query_streams_args(context.TODO(), rawArgs)
+		return e.complexity.PageInfo.Length(childComplexity), true
+
+	case "Query.getChunkById":
+		if e.complexity.Query.GetChunkByID == nil {
+			break
+		}
+
+		args, err := ec.field_Query_getChunkById_args(context.TODO(), rawArgs)
 		if err != nil {
 			return 0, false
 		}
 
-		return e.complexity.Query.Streams(childComplexity, args["after"].(*string), args["count"].(int)), true
+		return e.complexity.Query.GetChunkByID(childComplexity, args["id"].(string)), true
+
+	case "Query.getStreamById":
+		if e.complexity.Query.GetStreamByID == nil {
+			break
+		}
+
+		args, err := ec.field_Query_getStreamById_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.GetStreamByID(childComplexity, args["id"].(string)), true
+
+	case "Query.getStreams":
+		if e.complexity.Query.GetStreams == nil {
+			break
+		}
+
+		args, err := ec.field_Query_getStreams_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.GetStreams(childComplexity, args["after"].(*string), args["count"].(int)), true
+
+	case "Query.getTransmissionById":
+		if e.complexity.Query.GetTransmissionByID == nil {
+			break
+		}
+
+		args, err := ec.field_Query_getTransmissionById_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.GetTransmissionByID(childComplexity, args["id"].(string)), true
 
 	case "Stream.chunks":
 		if e.complexity.Stream.Chunks == nil {
@@ -284,6 +356,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Transmission.CreatedAt(childComplexity), true
+
+	case "Transmission.downloadUrl":
+		if e.complexity.Transmission.DownloadURL == nil {
+			break
+		}
+
+		return e.complexity.Transmission.DownloadURL(childComplexity), true
 
 	case "Transmission.id":
 		if e.complexity.Transmission.ID == nil {
@@ -481,7 +560,37 @@ func (ec *executionContext) field_Query___type_args(ctx context.Context, rawArgs
 	return args, nil
 }
 
-func (ec *executionContext) field_Query_streams_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+func (ec *executionContext) field_Query_getChunkById_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 string
+	if tmp, ok := rawArgs["id"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+		arg0, err = ec.unmarshalNID2string(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_getStreamById_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 string
+	if tmp, ok := rawArgs["id"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+		arg0, err = ec.unmarshalNID2string(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_getStreams_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
 	var arg0 *string
@@ -502,6 +611,21 @@ func (ec *executionContext) field_Query_streams_args(ctx context.Context, rawArg
 		}
 	}
 	args["count"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_getTransmissionById_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 string
+	if tmp, ok := rawArgs["id"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+		arg0, err = ec.unmarshalNID2string(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["id"] = arg0
 	return args, nil
 }
 
@@ -787,6 +911,47 @@ func (ec *executionContext) fieldContext_Chunk_sha256(ctx context.Context, field
 	return fc, nil
 }
 
+func (ec *executionContext) _Chunk_downloadUrl(ctx context.Context, field graphql.CollectedField, obj *model.Chunk) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Chunk_downloadUrl(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Chunk().DownloadURL(rctx, obj)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Chunk_downloadUrl(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Chunk",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Chunk_transmissions(ctx context.Context, field graphql.CollectedField, obj *model.Chunk) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Chunk_transmissions(ctx, field)
 	if err != nil {
@@ -801,7 +966,7 @@ func (ec *executionContext) _Chunk_transmissions(ctx context.Context, field grap
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.Transmissions, nil
+		return ec.resolvers.Chunk().Transmissions(rctx, obj, fc.Args["after"].(*string), fc.Args["count"].(int))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -822,8 +987,8 @@ func (ec *executionContext) fieldContext_Chunk_transmissions(ctx context.Context
 	fc = &graphql.FieldContext{
 		Object:     "Chunk",
 		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
+		IsMethod:   true,
+		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
 			case "edges":
@@ -869,14 +1034,11 @@ func (ec *executionContext) _ChunksConnection_edges(ctx context.Context, field g
 		return graphql.Null
 	}
 	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
 		return graphql.Null
 	}
 	res := resTmp.([]model.Chunk)
 	fc.Result = res
-	return ec.marshalNChunk2ᚕgithubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐChunkᚄ(ctx, field.Selections, res)
+	return ec.marshalOChunk2ᚕgithubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐChunkᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_ChunksConnection_edges(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -897,6 +1059,8 @@ func (ec *executionContext) fieldContext_ChunksConnection_edges(ctx context.Cont
 				return ec.fieldContext_Chunk_timestamp(ctx, field)
 			case "sha256":
 				return ec.fieldContext_Chunk_sha256(ctx, field)
+			case "downloadUrl":
+				return ec.fieldContext_Chunk_downloadUrl(ctx, field)
 			case "transmissions":
 				return ec.fieldContext_Chunk_transmissions(ctx, field)
 			}
@@ -947,6 +1111,8 @@ func (ec *executionContext) fieldContext_ChunksConnection_pageInfo(ctx context.C
 			switch field.Name {
 			case "hasNextPage":
 				return ec.fieldContext_PageInfo_hasNextPage(ctx, field)
+			case "length":
+				return ec.fieldContext_PageInfo_length(ctx, field)
 			case "endCursor":
 				return ec.fieldContext_PageInfo_endCursor(ctx, field)
 			}
@@ -1000,6 +1166,50 @@ func (ec *executionContext) fieldContext_PageInfo_hasNextPage(ctx context.Contex
 	return fc, nil
 }
 
+func (ec *executionContext) _PageInfo_length(ctx context.Context, field graphql.CollectedField, obj *model.PageInfo) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_PageInfo_length(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Length, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_PageInfo_length(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PageInfo",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _PageInfo_endCursor(ctx context.Context, field graphql.CollectedField, obj *model.PageInfo) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_PageInfo_endCursor(ctx, field)
 	if err != nil {
@@ -1041,8 +1251,8 @@ func (ec *executionContext) fieldContext_PageInfo_endCursor(ctx context.Context,
 	return fc, nil
 }
 
-func (ec *executionContext) _Query_streams(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Query_streams(ctx, field)
+func (ec *executionContext) _Query_getStreams(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_getStreams(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -1055,21 +1265,24 @@ func (ec *executionContext) _Query_streams(ctx context.Context, field graphql.Co
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Streams(rctx, fc.Args["after"].(*string), fc.Args["count"].(int))
+		return ec.resolvers.Query().GetStreams(rctx, fc.Args["after"].(*string), fc.Args["count"].(int))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
 		return graphql.Null
 	}
 	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
 		return graphql.Null
 	}
 	res := resTmp.(*model.StreamsConnection)
 	fc.Result = res
-	return ec.marshalOStreamsConnection2ᚖgithubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐStreamsConnection(ctx, field.Selections, res)
+	return ec.marshalNStreamsConnection2ᚖgithubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐStreamsConnection(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Query_streams(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Query_getStreams(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Query",
 		Field:      field,
@@ -1092,7 +1305,220 @@ func (ec *executionContext) fieldContext_Query_streams(ctx context.Context, fiel
 		}
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Query_streams_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+	if fc.Args, err = ec.field_Query_getStreams_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_getStreamById(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_getStreamById(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().GetStreamByID(rctx, fc.Args["id"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.Stream)
+	fc.Result = res
+	return ec.marshalNStream2ᚖgithubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐStream(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_getStreamById(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Stream_id(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Stream_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_Stream_updatedAt(ctx, field)
+			case "displayName":
+				return ec.fieldContext_Stream_displayName(ctx, field)
+			case "url":
+				return ec.fieldContext_Stream_url(ctx, field)
+			case "chunks":
+				return ec.fieldContext_Stream_chunks(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Stream", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_getStreamById_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_getChunkById(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_getChunkById(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().GetChunkByID(rctx, fc.Args["id"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.Chunk)
+	fc.Result = res
+	return ec.marshalNChunk2ᚖgithubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐChunk(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_getChunkById(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Chunk_id(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Chunk_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_Chunk_updatedAt(ctx, field)
+			case "timestamp":
+				return ec.fieldContext_Chunk_timestamp(ctx, field)
+			case "sha256":
+				return ec.fieldContext_Chunk_sha256(ctx, field)
+			case "downloadUrl":
+				return ec.fieldContext_Chunk_downloadUrl(ctx, field)
+			case "transmissions":
+				return ec.fieldContext_Chunk_transmissions(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Chunk", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_getChunkById_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_getTransmissionById(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_getTransmissionById(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().GetTransmissionByID(rctx, fc.Args["id"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.Transmission)
+	fc.Result = res
+	return ec.marshalNTransmission2ᚖgithubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐTransmission(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_getTransmissionById(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Transmission_id(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Transmission_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_Transmission_updatedAt(ctx, field)
+			case "timestamp":
+				return ec.fieldContext_Transmission_timestamp(ctx, field)
+			case "length":
+				return ec.fieldContext_Transmission_length(ctx, field)
+			case "sha256":
+				return ec.fieldContext_Transmission_sha256(ctx, field)
+			case "downloadUrl":
+				return ec.fieldContext_Transmission_downloadUrl(ctx, field)
+			case "content":
+				return ec.fieldContext_Transmission_content(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Transmission", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_getTransmissionById_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -1462,7 +1888,7 @@ func (ec *executionContext) _Stream_chunks(ctx context.Context, field graphql.Co
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.Chunks, nil
+		return ec.resolvers.Stream().Chunks(rctx, obj, fc.Args["after"].(*string), fc.Args["count"].(int))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1483,8 +1909,8 @@ func (ec *executionContext) fieldContext_Stream_chunks(ctx context.Context, fiel
 	fc = &graphql.FieldContext{
 		Object:     "Stream",
 		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
+		IsMethod:   true,
+		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
 			case "edges":
@@ -1530,14 +1956,11 @@ func (ec *executionContext) _StreamsConnection_edges(ctx context.Context, field 
 		return graphql.Null
 	}
 	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
 		return graphql.Null
 	}
 	res := resTmp.([]model.Stream)
 	fc.Result = res
-	return ec.marshalNStream2ᚕgithubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐStreamᚄ(ctx, field.Selections, res)
+	return ec.marshalOStream2ᚕgithubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐStreamᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_StreamsConnection_edges(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1608,6 +2031,8 @@ func (ec *executionContext) fieldContext_StreamsConnection_pageInfo(ctx context.
 			switch field.Name {
 			case "hasNextPage":
 				return ec.fieldContext_PageInfo_hasNextPage(ctx, field)
+			case "length":
+				return ec.fieldContext_PageInfo_length(ctx, field)
 			case "endCursor":
 				return ec.fieldContext_PageInfo_endCursor(ctx, field)
 			}
@@ -1881,6 +2306,47 @@ func (ec *executionContext) fieldContext_Transmission_sha256(ctx context.Context
 	return fc, nil
 }
 
+func (ec *executionContext) _Transmission_downloadUrl(ctx context.Context, field graphql.CollectedField, obj *model.Transmission) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Transmission_downloadUrl(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Transmission().DownloadURL(rctx, obj)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Transmission_downloadUrl(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Transmission",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Transmission_content(ctx context.Context, field graphql.CollectedField, obj *model.Transmission) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Transmission_content(ctx, field)
 	if err != nil {
@@ -1943,14 +2409,11 @@ func (ec *executionContext) _TransmissionsConnection_edges(ctx context.Context, 
 		return graphql.Null
 	}
 	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
 		return graphql.Null
 	}
 	res := resTmp.([]model.Transmission)
 	fc.Result = res
-	return ec.marshalNTransmission2ᚕgithubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐTransmissionᚄ(ctx, field.Selections, res)
+	return ec.marshalOTransmission2ᚕgithubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐTransmissionᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_TransmissionsConnection_edges(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1973,6 +2436,8 @@ func (ec *executionContext) fieldContext_TransmissionsConnection_edges(ctx conte
 				return ec.fieldContext_Transmission_length(ctx, field)
 			case "sha256":
 				return ec.fieldContext_Transmission_sha256(ctx, field)
+			case "downloadUrl":
+				return ec.fieldContext_Transmission_downloadUrl(ctx, field)
 			case "content":
 				return ec.fieldContext_Transmission_content(ctx, field)
 			}
@@ -2023,6 +2488,8 @@ func (ec *executionContext) fieldContext_TransmissionsConnection_pageInfo(ctx co
 			switch field.Name {
 			case "hasNextPage":
 				return ec.fieldContext_PageInfo_hasNextPage(ctx, field)
+			case "length":
+				return ec.fieldContext_PageInfo_length(ctx, field)
 			case "endCursor":
 				return ec.fieldContext_PageInfo_endCursor(ctx, field)
 			}
@@ -3857,33 +4324,97 @@ func (ec *executionContext) _Chunk(ctx context.Context, sel ast.SelectionSet, ob
 		case "id":
 			out.Values[i] = ec._Chunk_id(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "createdAt":
 			out.Values[i] = ec._Chunk_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "updatedAt":
 			out.Values[i] = ec._Chunk_updatedAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "timestamp":
 			out.Values[i] = ec._Chunk_timestamp(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "sha256":
 			out.Values[i] = ec._Chunk_sha256(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "downloadUrl":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Chunk_downloadUrl(ctx, field, obj)
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "transmissions":
-			out.Values[i] = ec._Chunk_transmissions(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Chunk_transmissions(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
 			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -3920,9 +4451,6 @@ func (ec *executionContext) _ChunksConnection(ctx context.Context, sel ast.Selec
 			out.Values[i] = graphql.MarshalString("ChunksConnection")
 		case "edges":
 			out.Values[i] = ec._ChunksConnection_edges(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
 		case "pageInfo":
 			out.Values[i] = ec._ChunksConnection_pageInfo(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -3964,6 +4492,11 @@ func (ec *executionContext) _PageInfo(ctx context.Context, sel ast.SelectionSet,
 			out.Values[i] = graphql.MarshalString("PageInfo")
 		case "hasNextPage":
 			out.Values[i] = ec._PageInfo_hasNextPage(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "length":
+			out.Values[i] = ec._PageInfo_length(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -4011,7 +4544,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("Query")
-		case "streams":
+		case "getStreams":
 			field := field
 
 			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
@@ -4020,7 +4553,76 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 						ec.Error(ctx, ec.Recover(ctx, r))
 					}
 				}()
-				res = ec._Query_streams(ctx, field)
+				res = ec._Query_getStreams(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "getStreamById":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_getStreamById(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "getChunkById":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_getChunkById(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "getTransmissionById":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_getTransmissionById(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
 				return res
 			}
 
@@ -4075,33 +4677,64 @@ func (ec *executionContext) _Stream(ctx context.Context, sel ast.SelectionSet, o
 		case "id":
 			out.Values[i] = ec._Stream_id(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "createdAt":
 			out.Values[i] = ec._Stream_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "updatedAt":
 			out.Values[i] = ec._Stream_updatedAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "displayName":
 			out.Values[i] = ec._Stream_displayName(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "url":
 			out.Values[i] = ec._Stream_url(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "chunks":
-			out.Values[i] = ec._Stream_chunks(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Stream_chunks(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
 			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -4138,9 +4771,6 @@ func (ec *executionContext) _StreamsConnection(ctx context.Context, sel ast.Sele
 			out.Values[i] = graphql.MarshalString("StreamsConnection")
 		case "edges":
 			out.Values[i] = ec._StreamsConnection_edges(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
 		case "pageInfo":
 			out.Values[i] = ec._StreamsConnection_pageInfo(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -4183,33 +4813,66 @@ func (ec *executionContext) _Transmission(ctx context.Context, sel ast.Selection
 		case "id":
 			out.Values[i] = ec._Transmission_id(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "createdAt":
 			out.Values[i] = ec._Transmission_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "updatedAt":
 			out.Values[i] = ec._Transmission_updatedAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "timestamp":
 			out.Values[i] = ec._Transmission_timestamp(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "length":
 			out.Values[i] = ec._Transmission_length(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "sha256":
 			out.Values[i] = ec._Transmission_sha256(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "downloadUrl":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Transmission_downloadUrl(ctx, field, obj)
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "content":
 			out.Values[i] = ec._Transmission_content(ctx, field, obj)
 		default:
@@ -4248,9 +4911,6 @@ func (ec *executionContext) _TransmissionsConnection(ctx context.Context, sel as
 			out.Values[i] = graphql.MarshalString("TransmissionsConnection")
 		case "edges":
 			out.Values[i] = ec._TransmissionsConnection_edges(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
 		case "pageInfo":
 			out.Values[i] = ec._TransmissionsConnection_pageInfo(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -4624,48 +5284,18 @@ func (ec *executionContext) marshalNChunk2githubᚗcomᚋMichaelᚑFᚑBryanᚋr
 	return ec._Chunk(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNChunk2ᚕgithubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐChunkᚄ(ctx context.Context, sel ast.SelectionSet, v []model.Chunk) graphql.Marshaler {
-	ret := make(graphql.Array, len(v))
-	var wg sync.WaitGroup
-	isLen1 := len(v) == 1
-	if !isLen1 {
-		wg.Add(len(v))
+func (ec *executionContext) marshalNChunk2ᚖgithubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐChunk(ctx context.Context, sel ast.SelectionSet, v *model.Chunk) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
 	}
-	for i := range v {
-		i := i
-		fc := &graphql.FieldContext{
-			Index:  &i,
-			Result: &v[i],
-		}
-		ctx := graphql.WithFieldContext(ctx, fc)
-		f := func(i int) {
-			defer func() {
-				if r := recover(); r != nil {
-					ec.Error(ctx, ec.Recover(ctx, r))
-					ret = nil
-				}
-			}()
-			if !isLen1 {
-				defer wg.Done()
-			}
-			ret[i] = ec.marshalNChunk2githubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐChunk(ctx, sel, v[i])
-		}
-		if isLen1 {
-			f(i)
-		} else {
-			go f(i)
-		}
+	return ec._Chunk(ctx, sel, v)
+}
 
-	}
-	wg.Wait()
-
-	for _, e := range ret {
-		if e == graphql.Null {
-			return graphql.Null
-		}
-	}
-
-	return ret
+func (ec *executionContext) marshalNChunksConnection2githubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐChunksConnection(ctx context.Context, sel ast.SelectionSet, v model.ChunksConnection) graphql.Marshaler {
+	return ec._ChunksConnection(ctx, sel, &v)
 }
 
 func (ec *executionContext) marshalNChunksConnection2ᚖgithubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐChunksConnection(ctx context.Context, sel ast.SelectionSet, v *model.ChunksConnection) graphql.Marshaler {
@@ -4737,48 +5367,28 @@ func (ec *executionContext) marshalNStream2githubᚗcomᚋMichaelᚑFᚑBryanᚋ
 	return ec._Stream(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNStream2ᚕgithubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐStreamᚄ(ctx context.Context, sel ast.SelectionSet, v []model.Stream) graphql.Marshaler {
-	ret := make(graphql.Array, len(v))
-	var wg sync.WaitGroup
-	isLen1 := len(v) == 1
-	if !isLen1 {
-		wg.Add(len(v))
+func (ec *executionContext) marshalNStream2ᚖgithubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐStream(ctx context.Context, sel ast.SelectionSet, v *model.Stream) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
 	}
-	for i := range v {
-		i := i
-		fc := &graphql.FieldContext{
-			Index:  &i,
-			Result: &v[i],
-		}
-		ctx := graphql.WithFieldContext(ctx, fc)
-		f := func(i int) {
-			defer func() {
-				if r := recover(); r != nil {
-					ec.Error(ctx, ec.Recover(ctx, r))
-					ret = nil
-				}
-			}()
-			if !isLen1 {
-				defer wg.Done()
-			}
-			ret[i] = ec.marshalNStream2githubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐStream(ctx, sel, v[i])
-		}
-		if isLen1 {
-			f(i)
-		} else {
-			go f(i)
-		}
+	return ec._Stream(ctx, sel, v)
+}
 
+func (ec *executionContext) marshalNStreamsConnection2githubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐStreamsConnection(ctx context.Context, sel ast.SelectionSet, v model.StreamsConnection) graphql.Marshaler {
+	return ec._StreamsConnection(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNStreamsConnection2ᚖgithubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐStreamsConnection(ctx context.Context, sel ast.SelectionSet, v *model.StreamsConnection) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
 	}
-	wg.Wait()
-
-	for _, e := range ret {
-		if e == graphql.Null {
-			return graphql.Null
-		}
-	}
-
-	return ret
+	return ec._StreamsConnection(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v interface{}) (string, error) {
@@ -4815,48 +5425,18 @@ func (ec *executionContext) marshalNTransmission2githubᚗcomᚋMichaelᚑFᚑBr
 	return ec._Transmission(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNTransmission2ᚕgithubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐTransmissionᚄ(ctx context.Context, sel ast.SelectionSet, v []model.Transmission) graphql.Marshaler {
-	ret := make(graphql.Array, len(v))
-	var wg sync.WaitGroup
-	isLen1 := len(v) == 1
-	if !isLen1 {
-		wg.Add(len(v))
+func (ec *executionContext) marshalNTransmission2ᚖgithubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐTransmission(ctx context.Context, sel ast.SelectionSet, v *model.Transmission) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
 	}
-	for i := range v {
-		i := i
-		fc := &graphql.FieldContext{
-			Index:  &i,
-			Result: &v[i],
-		}
-		ctx := graphql.WithFieldContext(ctx, fc)
-		f := func(i int) {
-			defer func() {
-				if r := recover(); r != nil {
-					ec.Error(ctx, ec.Recover(ctx, r))
-					ret = nil
-				}
-			}()
-			if !isLen1 {
-				defer wg.Done()
-			}
-			ret[i] = ec.marshalNTransmission2githubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐTransmission(ctx, sel, v[i])
-		}
-		if isLen1 {
-			f(i)
-		} else {
-			go f(i)
-		}
+	return ec._Transmission(ctx, sel, v)
+}
 
-	}
-	wg.Wait()
-
-	for _, e := range ret {
-		if e == graphql.Null {
-			return graphql.Null
-		}
-	}
-
-	return ret
+func (ec *executionContext) marshalNTransmissionsConnection2githubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐTransmissionsConnection(ctx context.Context, sel ast.SelectionSet, v model.TransmissionsConnection) graphql.Marshaler {
+	return ec._TransmissionsConnection(ctx, sel, &v)
 }
 
 func (ec *executionContext) marshalNTransmissionsConnection2ᚖgithubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐTransmissionsConnection(ctx context.Context, sel ast.SelectionSet, v *model.TransmissionsConnection) graphql.Marshaler {
@@ -5148,6 +5728,53 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	return res
 }
 
+func (ec *executionContext) marshalOChunk2ᚕgithubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐChunkᚄ(ctx context.Context, sel ast.SelectionSet, v []model.Chunk) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNChunk2githubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐChunk(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
 func (ec *executionContext) unmarshalOID2ᚖstring(ctx context.Context, v interface{}) (*string, error) {
 	if v == nil {
 		return nil, nil
@@ -5164,11 +5791,51 @@ func (ec *executionContext) marshalOID2ᚖstring(ctx context.Context, sel ast.Se
 	return res
 }
 
-func (ec *executionContext) marshalOStreamsConnection2ᚖgithubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐStreamsConnection(ctx context.Context, sel ast.SelectionSet, v *model.StreamsConnection) graphql.Marshaler {
+func (ec *executionContext) marshalOStream2ᚕgithubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐStreamᚄ(ctx context.Context, sel ast.SelectionSet, v []model.Stream) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
-	return ec._StreamsConnection(ctx, sel, v)
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNStream2githubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐStream(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) unmarshalOString2ᚖstring(ctx context.Context, v interface{}) (*string, error) {
@@ -5185,6 +5852,53 @@ func (ec *executionContext) marshalOString2ᚖstring(ctx context.Context, sel as
 	}
 	res := graphql.MarshalString(*v)
 	return res
+}
+
+func (ec *executionContext) marshalOTransmission2ᚕgithubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐTransmissionᚄ(ctx context.Context, sel ast.SelectionSet, v []model.Transmission) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNTransmission2githubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐTransmission(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) marshalO__EnumValue2ᚕgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐEnumValueᚄ(ctx context.Context, sel ast.SelectionSet, v []introspection.EnumValue) graphql.Marshaler {

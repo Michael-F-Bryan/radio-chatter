@@ -6,24 +6,104 @@ package graphql
 
 import (
 	"context"
-	"fmt"
 
 	radiochatter "github.com/Michael-F-Bryan/radio-chatter/pkg"
 	"github.com/Michael-F-Bryan/radio-chatter/pkg/graphql/model"
 )
 
-// Streams is the resolver for the streams field.
-func (r *queryResolver) Streams(ctx context.Context, after *string, count int) (*model.StreamsConnection, error) {
-	var streams []radiochatter.Stream
-
-	if err := r.db.Find(&streams).Error; err != nil {
-		return nil, err
-	}
-
-	panic(fmt.Errorf("not implemented: Streams - streams"))
-}
+// Chunk returns ChunkResolver implementation.
+func (r *Resolver) Chunk() ChunkResolver { return &chunkResolver{r} }
 
 // Query returns QueryResolver implementation.
 func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 
+// Stream returns StreamResolver implementation.
+func (r *Resolver) Stream() StreamResolver { return &streamResolver{r} }
+
+// Transmission returns TransmissionResolver implementation.
+func (r *Resolver) Transmission() TransmissionResolver { return &transmissionResolver{r} }
+
 type queryResolver struct{ *Resolver }
+
+func (r *queryResolver) GetStreams(ctx context.Context, after *string, count int) (*model.StreamsConnection, error) {
+	p := paginator[radiochatter.Stream, model.Stream, model.StreamsConnection]{
+		mapModel: streamToGraphQL,
+		makeConn: func(edges []model.Stream, page model.PageInfo) model.StreamsConnection {
+			return model.StreamsConnection{Edges: edges, PageInfo: &page}
+		},
+		Limit: 5,
+	}
+
+	return p.Page(r.DB, after, count)
+}
+
+// GetStreamByID is the resolver for the getStreamById field.
+func (r *queryResolver) GetStreamByID(ctx context.Context, id string) (*model.Stream, error) {
+	return getByID[radiochatter.Stream, model.Stream](r.DB, id, streamToGraphQL)
+}
+
+// GetChunkByID is the resolver for the getChunkById field.
+func (r *queryResolver) GetChunkByID(ctx context.Context, id string) (*model.Chunk, error) {
+	return getByID[radiochatter.Chunk, model.Chunk](r.DB, id, chunkToGraphQL)
+}
+
+// GetTransmissionByID is the resolver for the getTransmissionById field.
+func (r *queryResolver) GetTransmissionByID(ctx context.Context, id string) (*model.Transmission, error) {
+	return getByID[radiochatter.Transmission, model.Transmission](r.DB, id, transmissionToGraphQL)
+}
+
+type chunkResolver struct{ *Resolver }
+
+// DownloadURL is the resolver for the downloadUrl field.
+func (r *chunkResolver) DownloadURL(ctx context.Context, obj *model.Chunk) (*string, error) {
+	// TODO: Signed URLs
+	return nil, nil
+}
+
+// Transmissions is the resolver for the transmissions field.
+func (r *chunkResolver) Transmissions(ctx context.Context, obj *model.Chunk, after *string, count int) (*model.TransmissionsConnection, error) {
+	chunkId, err := decodeModelId[radiochatter.Chunk](obj.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	p := paginator[radiochatter.Transmission, model.Transmission, model.TransmissionsConnection]{
+		mapModel: transmissionToGraphQL,
+		makeConn: func(edges []model.Transmission, page model.PageInfo) model.TransmissionsConnection {
+			return model.TransmissionsConnection{Edges: edges, PageInfo: &page}
+		},
+		Filter: &radiochatter.Transmission{ChunkID: chunkId},
+		Limit:  30,
+	}
+
+	return p.Page(r.DB, after, count)
+}
+
+type streamResolver struct{ *Resolver }
+
+// Chunks is the resolver for the chunks field.
+func (r *streamResolver) Chunks(ctx context.Context, obj *model.Stream, after *string, count int) (*model.ChunksConnection, error) {
+	streamId, err := decodeModelId[radiochatter.Stream](obj.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	p := paginator[radiochatter.Chunk, model.Chunk, model.ChunksConnection]{
+		mapModel: chunkToGraphQL,
+		makeConn: func(edges []model.Chunk, page model.PageInfo) model.ChunksConnection {
+			return model.ChunksConnection{Edges: edges, PageInfo: &page}
+		},
+		Filter: &radiochatter.Chunk{StreamID: streamId},
+		Limit:  30,
+	}
+
+	return p.Page(r.DB, after, count)
+}
+
+type transmissionResolver struct{ *Resolver }
+
+// DownloadURL is the resolver for the downloadUrl field.
+func (r *transmissionResolver) DownloadURL(ctx context.Context, obj *model.Transmission) (*string, error) {
+	// TODO: Signed URLs
+	return nil, nil
+}

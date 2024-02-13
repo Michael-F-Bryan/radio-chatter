@@ -9,6 +9,7 @@ scalar Time
 
 type PageInfo {
   hasNextPage: Boolean!
+  length: Int!
   endCursor: ID
 }
 
@@ -25,11 +26,11 @@ type Stream implements Node {
 
   displayName: String!
   url: String!
-  chunks(after: ID, count: Int! = 100): ChunksConnection!
+  chunks(after: ID, count: Int! = 30): ChunksConnection!
 }
 
 type ChunksConnection {
-  edges: [Chunk!]!
+  edges: [Chunk!]
   pageInfo: PageInfo!
 }
 
@@ -40,12 +41,13 @@ type Chunk implements Node {
 
   timestamp: Time!
   sha256: String!
-  # stream: Stream!
-  transmissions(after: ID, count: Int! = 100): TransmissionsConnection!
+  downloadUrl: String
+
+  transmissions(after: ID, count: Int! = 30): TransmissionsConnection!
 }
 
 type TransmissionsConnection {
-  edges: [Transmission!]!
+  edges: [Transmission!]
   pageInfo: PageInfo!
 }
 
@@ -57,17 +59,20 @@ type Transmission implements Node {
   timestamp: Time!
   length: Float!
   sha256: String!
-  # chunk: Chunk!
+  downloadUrl: String
   content: String
 }
 
 type StreamsConnection {
-  edges: [Stream!]!
+  edges: [Stream!]
   pageInfo: PageInfo!
 }
 
 type Query {
-  streams(after: ID, count: Int! = 10): StreamsConnection
+  getStreams(after: ID, count: Int! = 10): StreamsConnection!
+  getStreamById(id: ID!): Stream!
+  getChunkById(id: ID!): Chunk!
+  getTransmissionById(id: ID!): Transmission!
 }
 
 # type Mutation { }

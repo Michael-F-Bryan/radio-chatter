@@ -78,3 +78,17 @@ models:
       - github.com/99designs/gqlgen/graphql.Int
       - github.com/99designs/gqlgen/graphql.Int64
       - github.com/99designs/gqlgen/graphql.Int32
+  Stream:
+    fields:
+      chunks:
+        resolver: true
+  Chunk:
+    fields:
+      transmissions:
+        resolver: true
+      downloadUrl:
+        resolver: true
+  Transmission:
+    fields:
+      downloadUrl:
+        resolver: true
