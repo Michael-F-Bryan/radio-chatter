@@ -3,6 +3,7 @@ package graphql
 import (
 	_ "embed"
 
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -12,5 +13,6 @@ import (
 var Schema string
 
 type Resolver struct {
-	DB *gorm.DB
+	DB     *gorm.DB
+	Logger *zap.Logger
 }

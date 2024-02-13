@@ -6,25 +6,38 @@ package graphql
 
 import (
 	"context"
+	"time"
 
 	radiochatter "github.com/Michael-F-Bryan/radio-chatter/pkg"
 	"github.com/Michael-F-Bryan/radio-chatter/pkg/graphql/model"
 )
 
-// Chunk returns ChunkResolver implementation.
-func (r *Resolver) Chunk() ChunkResolver { return &chunkResolver{r} }
+// DownloadURL is the resolver for the downloadUrl field.
+func (r *chunkResolver) DownloadURL(ctx context.Context, obj *model.Chunk) (*string, error) {
+	// TODO: Signed URLs
+	return nil, nil
+}
 
-// Query returns QueryResolver implementation.
-func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
+// Transmissions is the resolver for the transmissions field.
+func (r *chunkResolver) Transmissions(ctx context.Context, obj *model.Chunk, after *string, count int) (*model.TransmissionsConnection, error) {
+	chunkId, err := decodeModelId[radiochatter.Chunk](obj.ID)
+	if err != nil {
+		return nil, err
+	}
 
-// Stream returns StreamResolver implementation.
-func (r *Resolver) Stream() StreamResolver { return &streamResolver{r} }
+	p := paginator[radiochatter.Transmission, model.Transmission, model.TransmissionsConnection]{
+		mapModel: transmissionToGraphQL,
+		makeConn: func(edges []model.Transmission, page model.PageInfo) model.TransmissionsConnection {
+			return model.TransmissionsConnection{Edges: edges, PageInfo: &page}
+		},
+		Filter: &radiochatter.Transmission{ChunkID: chunkId},
+		Limit:  30,
+	}
 
-// Transmission returns TransmissionResolver implementation.
-func (r *Resolver) Transmission() TransmissionResolver { return &transmissionResolver{r} }
+	return p.Page(r.DB, after, count)
+}
 
-type queryResolver struct{ *Resolver }
-
+// GetStreams is the resolver for the getStreams field.
 func (r *queryResolver) GetStreams(ctx context.Context, after *string, count int) (*model.StreamsConnection, error) {
 	p := paginator[radiochatter.Stream, model.Stream, model.StreamsConnection]{
 		mapModel: streamToGraphQL,
@@ -52,35 +65,6 @@ func (r *queryResolver) GetTransmissionByID(ctx context.Context, id string) (*mo
 	return getByID[radiochatter.Transmission, model.Transmission](r.DB, id, transmissionToGraphQL)
 }
 
-type chunkResolver struct{ *Resolver }
-
-// DownloadURL is the resolver for the downloadUrl field.
-func (r *chunkResolver) DownloadURL(ctx context.Context, obj *model.Chunk) (*string, error) {
-	// TODO: Signed URLs
-	return nil, nil
-}
-
-// Transmissions is the resolver for the transmissions field.
-func (r *chunkResolver) Transmissions(ctx context.Context, obj *model.Chunk, after *string, count int) (*model.TransmissionsConnection, error) {
-	chunkId, err := decodeModelId[radiochatter.Chunk](obj.ID)
-	if err != nil {
-		return nil, err
-	}
-
-	p := paginator[radiochatter.Transmission, model.Transmission, model.TransmissionsConnection]{
-		mapModel: transmissionToGraphQL,
-		makeConn: func(edges []model.Transmission, page model.PageInfo) model.TransmissionsConnection {
-			return model.TransmissionsConnection{Edges: edges, PageInfo: &page}
-		},
-		Filter: &radiochatter.Transmission{ChunkID: chunkId},
-		Limit:  30,
-	}
-
-	return p.Page(r.DB, after, count)
-}
-
-type streamResolver struct{ *Resolver }
-
 // Chunks is the resolver for the chunks field.
 func (r *streamResolver) Chunks(ctx context.Context, obj *model.Stream, after *string, count int) (*model.ChunksConnection, error) {
 	streamId, err := decodeModelId[radiochatter.Stream](obj.ID)
@@ -100,10 +84,50 @@ func (r *streamResolver) Chunks(ctx context.Context, obj *model.Stream, after *s
 	return p.Page(r.DB, after, count)
 }
 
-type transmissionResolver struct{ *Resolver }
+func (r *subscriptionResolver) Chunk(ctx context.Context) (<-chan *model.Chunk, error) {
+	ch := pollForUpdates[radiochatter.Chunk, model.Chunk](
+		ctx,
+		r.DB,
+		r.Logger,
+		chunkToGraphQL,
+		func(c radiochatter.Chunk) time.Time { return c.CreatedAt },
+	)
+	return ch, nil
+}
 
-// DownloadURL is the resolver for the downloadUrl field.
+func (r *subscriptionResolver) Transmission(ctx context.Context) (<-chan *model.Transmission, error) {
+	ch := pollForUpdates[radiochatter.Transmission, model.Transmission](
+		ctx,
+		r.DB,
+		r.Logger,
+		transmissionToGraphQL,
+		func(c radiochatter.Transmission) time.Time { return c.CreatedAt },
+	)
+	return ch, nil
+}
+
 func (r *transmissionResolver) DownloadURL(ctx context.Context, obj *model.Transmission) (*string, error) {
 	// TODO: Signed URLs
 	return nil, nil
 }
+
+// Chunk returns ChunkResolver implementation.
+func (r *Resolver) Chunk() ChunkResolver { return &chunkResolver{r} }
+
+// Query returns QueryResolver implementation.
+func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
+
+// Stream returns StreamResolver implementation.
+func (r *Resolver) Stream() StreamResolver { return &streamResolver{r} }
+
+// Subscription returns SubscriptionResolver implementation.
+func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionResolver{r} }
+
+// Transmission returns TransmissionResolver implementation.
+func (r *Resolver) Transmission() TransmissionResolver { return &transmissionResolver{r} }
+
+type chunkResolver struct{ *Resolver }
+type queryResolver struct{ *Resolver }
+type streamResolver struct{ *Resolver }
+type subscriptionResolver struct{ *Resolver }
+type transmissionResolver struct{ *Resolver }

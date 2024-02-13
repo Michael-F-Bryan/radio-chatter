@@ -1,13 +1,18 @@
 package handlers
 
 import (
+	"bufio"
 	"context"
+	"errors"
+	"net"
 	"net/http"
 	"time"
 
 	"github.com/gorilla/mux"
 	"go.uber.org/zap"
 )
+
+var ErrCantHijack = errors.New("websocket: response does not implement http.Hijacker")
 
 type loggerKey struct{}
 
@@ -82,4 +87,12 @@ func (s *spyResponseWriter) Write(data []byte) (int, error) {
 	bytesWritten, err := s.inner.Write(data)
 	s.bytesWritten += bytesWritten
 	return bytesWritten, err
+}
+
+func (s *spyResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if hijacker, ok := s.inner.(http.Hijacker); ok {
+		return hijacker.Hijack()
+	}
+
+	return nil, nil, ErrCantHijack
 }

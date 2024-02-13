@@ -81,7 +81,7 @@ func (a *archiver) onFinished() {
 }
 
 func (a *archiver) onSilenceStart(t time.Duration) {
-	startOffset := clipLength * time.Duration(a.fileIndex)
+	startOffset := ChunkLength * time.Duration(a.fileIndex)
 	span := audioSpan{
 		Start: a.audioStarted - startOffset,
 		End:   t - startOffset,
@@ -101,7 +101,7 @@ func (a *archiver) onSilenceEnd(t time.Duration, duration time.Duration) {
 }
 
 func (a *archiver) completeFile(audioMayContinue bool) {
-	startOffset := clipLength * time.Duration(a.fileIndex)
+	startOffset := ChunkLength * time.Duration(a.fileIndex)
 	clipStart := a.recordingStarted.Add(startOffset).UTC()
 
 	op := ArchiveOperation{
@@ -112,7 +112,7 @@ func (a *archiver) completeFile(audioMayContinue bool) {
 	if !a.inSilence && audioMayContinue {
 		// Make sure we handle audio that continues across the end of the
 		// current clip
-		endOfChunk := startOffset + clipLength
+		endOfChunk := startOffset + ChunkLength
 		span := audioSpan{
 			Start: a.audioStarted - startOffset,
 			End:   endOfChunk - startOffset,

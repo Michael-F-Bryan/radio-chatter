@@ -1,15 +1,18 @@
 package graphql
 
 import (
+	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	radiochatter "github.com/Michael-F-Bryan/radio-chatter/pkg"
 	"github.com/Michael-F-Bryan/radio-chatter/pkg/graphql/model"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -101,4 +104,53 @@ func getByID[Model any, Generated any](db *gorm.DB, id string, mapFunc func(Mode
 	value := mapFunc(model)
 
 	return &value, nil
+}
+
+func pollForUpdates[Model any, Generated any](
+	ctx context.Context,
+	db *gorm.DB,
+	logger *zap.Logger,
+	mapFunc func(Model) Generated,
+	getCreatedAt func(Model) time.Time,
+) <-chan *Generated {
+	ch := make(chan *Generated)
+
+	go func() {
+		defer close(ch)
+		logger.Debug("Subscription started", zap.Stringer("type", typeOf[Model]()))
+		defer logger.Debug("Subscription cancelled")
+
+		timer := time.NewTicker(radiochatter.ChunkLength)
+		defer timer.Stop()
+
+		lastCheck := time.Now()
+		db := db.WithContext(ctx)
+
+		for {
+			select {
+			case <-timer.C:
+				var items []Model
+				err := db.Where("createdAt > ?", lastCheck).Find(&items).Error
+				if err != nil {
+					logger.Error("Unable to fetch recently created items", zap.Error(err))
+					return
+				}
+
+				for _, item := range items {
+					value := mapFunc(item)
+					select {
+					case ch <- &value:
+						lastCheck = getCreatedAt(item)
+					case <-ctx.Done():
+						return
+					}
+				}
+
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	return ch
 }

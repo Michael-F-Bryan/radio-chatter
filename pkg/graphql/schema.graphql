@@ -75,4 +75,7 @@ type Query {
   getTransmissionById(id: ID!): Transmission!
 }
 
-# type Mutation { }
+type Subscription {
+  chunk: Chunk!
+  transmission: Transmission!
+}

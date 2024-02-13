@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/99designs/gqlgen/graphql/handler"
+	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/Michael-F-Bryan/radio-chatter/pkg/graphql"
 	"github.com/gorilla/handlers"
@@ -16,14 +17,17 @@ import (
 func Router(logger *zap.Logger, db *gorm.DB) http.Handler {
 	r := mux.NewRouter()
 
-	srv := handler.NewDefaultServer(graphql.NewExecutableSchema(graphql.Config{Resolvers: &graphql.Resolver{DB: db}}))
+	resolver := &graphql.Resolver{
+		DB:     db,
+		Logger: logger.Named("graphql"),
+	}
+	srv := handler.NewDefaultServer(graphql.NewExecutableSchema(graphql.Config{Resolvers: resolver}))
+	srv.AddTransport(&transport.Websocket{})
 
 	r.Path("/healthz").Methods(http.MethodHead, http.MethodGet).Handler(Healthz(db, logger))
-
-	graphqlRouter := r.PathPrefix("/graphql").Subrouter()
-	graphqlRouter.Methods(http.MethodHead, http.MethodGet).Handler(playground.Handler("GraphQL playground", "/graphql"))
-	graphqlRouter.Methods(http.MethodPost).Handler(srv)
-	graphqlRouter.Path("schema.graphql").HandlerFunc(graphqlSchema)
+	r.Path("/graphql").Schemes("http", "https", "ws", "wss").Handler(srv)
+	r.Path("/graphql/playground").Handler(playground.Handler("GraphQL playground", "/graphql"))
+	r.Path("/graphql/schema.graphql").Methods(http.MethodHead, http.MethodGet).HandlerFunc(graphqlSchema)
 
 	return applyMiddleware(
 		r,

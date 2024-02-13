@@ -61,6 +61,9 @@ type StreamsConnection struct {
 	PageInfo *PageInfo `json:"pageInfo"`
 }
 
+type Subscription struct {
+}
+
 type Transmission struct {
 	ID          string    `json:"id"`
 	CreatedAt   time.Time `json:"createdAt"`
