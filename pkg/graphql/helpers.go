@@ -30,6 +30,7 @@ func modelId(value any) string {
 
 	panic("The type must embed a gorm.Model")
 }
+
 func decodeModelId[T any](encoded string) (uint, error) {
 	s, err := base64.StdEncoding.DecodeString(encoded)
 	if err != nil {
@@ -57,6 +58,7 @@ func typeOf[T any]() reflect.Type {
 	var dummy T
 	return reflect.TypeOf(dummy)
 }
+
 func streamToGraphQL(t radiochatter.Stream) model.Stream {
 	return model.Stream{
 		ID:          modelId(t),

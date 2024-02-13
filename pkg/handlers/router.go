@@ -1,9 +1,11 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 
+	gql "github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/99designs/gqlgen/graphql/playground"
@@ -21,7 +23,12 @@ func Router(logger *zap.Logger, db *gorm.DB) http.Handler {
 		DB:     db,
 		Logger: logger.Named("graphql"),
 	}
-	srv := handler.NewDefaultServer(graphql.NewExecutableSchema(graphql.Config{Resolvers: resolver}))
+	srv := handler.NewDefaultServer(graphql.NewExecutableSchema(graphql.Config{
+		Resolvers: resolver,
+		Directives: graphql.DirectiveRoot{
+			Authenticated: isAuthenticatedDirective,
+		},
+	}))
 	srv.AddTransport(&transport.Websocket{})
 
 	r.Path("/healthz").Methods(http.MethodHead, http.MethodGet).Handler(Healthz(db, logger))
@@ -79,4 +86,10 @@ func (r *recoveryLogger) Println(values ...any) {
 	}
 
 	r.logger.Error("A panic occurred", zap.Any("payload", payload))
+}
+
+func isAuthenticatedDirective(ctx context.Context, obj interface{}, next gql.Resolver) (res interface{}, err error) {
+	logger := GetLogger(ctx)
+	logger.Info("Checking auth", zap.Any("obj", obj))
+	return next(ctx)
 }

@@ -33,6 +33,9 @@ type ChunksConnection struct {
 	PageInfo *PageInfo `json:"pageInfo"`
 }
 
+type Mutation struct {
+}
+
 type PageInfo struct {
 	HasNextPage bool    `json:"hasNextPage"`
 	Length      int     `json:"length"`
@@ -40,6 +43,11 @@ type PageInfo struct {
 }
 
 type Query struct {
+}
+
+type RegisterStreamVariables struct {
+	DisplayName string `json:"displayName"`
+	URL         string `json:"url"`
 }
 
 type Stream struct {

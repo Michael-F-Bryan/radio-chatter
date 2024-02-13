@@ -10,6 +10,7 @@ import (
 
 	radiochatter "github.com/Michael-F-Bryan/radio-chatter/pkg"
 	"github.com/Michael-F-Bryan/radio-chatter/pkg/graphql/model"
+	"go.uber.org/zap"
 )
 
 // DownloadURL is the resolver for the downloadUrl field.
@@ -35,6 +36,41 @@ func (r *chunkResolver) Transmissions(ctx context.Context, obj *model.Chunk, aft
 	}
 
 	return p.Page(r.DB, after, count)
+}
+
+// RegisterStream is the resolver for the registerStream field.
+func (r *mutationResolver) RegisterStream(ctx context.Context, input model.RegisterStreamVariables) (*model.Stream, error) {
+	stream := radiochatter.Stream{
+		DisplayName: input.DisplayName,
+		Url:         input.URL,
+	}
+
+	if err := r.DB.Save(&stream).Error; err != nil {
+		return nil, err
+	}
+
+	r.Logger.Info("Stream created", zap.Any("stream", stream))
+
+	model := streamToGraphQL(stream)
+	return &model, nil
+}
+
+// RemoveStream is the resolver for the removeStream field.
+func (r *mutationResolver) RemoveStream(ctx context.Context, id string) (*model.Stream, error) {
+	realID, err := decodeModelId[radiochatter.Stream](id)
+	if err != nil {
+		return nil, err
+	}
+
+	var stream radiochatter.Stream
+	if err := r.DB.Delete(&stream, "id = ?", realID).Error; err != nil {
+		return nil, err
+	}
+
+	r.Logger.Info("Stream deleted", zap.Any("stream", stream))
+
+	value := streamToGraphQL(stream)
+	return &value, nil
 }
 
 // GetStreams is the resolver for the getStreams field.
@@ -84,6 +120,7 @@ func (r *streamResolver) Chunks(ctx context.Context, obj *model.Stream, after *s
 	return p.Page(r.DB, after, count)
 }
 
+// Chunk is the resolver for the chunk field.
 func (r *subscriptionResolver) Chunk(ctx context.Context) (<-chan *model.Chunk, error) {
 	ch := pollForUpdates[radiochatter.Chunk, model.Chunk](
 		ctx,
@@ -95,6 +132,7 @@ func (r *subscriptionResolver) Chunk(ctx context.Context) (<-chan *model.Chunk, 
 	return ch, nil
 }
 
+// Transmission is the resolver for the transmission field.
 func (r *subscriptionResolver) Transmission(ctx context.Context) (<-chan *model.Transmission, error) {
 	ch := pollForUpdates[radiochatter.Transmission, model.Transmission](
 		ctx,
@@ -106,6 +144,7 @@ func (r *subscriptionResolver) Transmission(ctx context.Context) (<-chan *model.
 	return ch, nil
 }
 
+// DownloadURL is the resolver for the downloadUrl field.
 func (r *transmissionResolver) DownloadURL(ctx context.Context, obj *model.Transmission) (*string, error) {
 	// TODO: Signed URLs
 	return nil, nil
@@ -113,6 +152,9 @@ func (r *transmissionResolver) DownloadURL(ctx context.Context, obj *model.Trans
 
 // Chunk returns ChunkResolver implementation.
 func (r *Resolver) Chunk() ChunkResolver { return &chunkResolver{r} }
+
+// Mutation returns MutationResolver implementation.
+func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
 
 // Query returns QueryResolver implementation.
 func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
@@ -127,6 +169,7 @@ func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionRes
 func (r *Resolver) Transmission() TransmissionResolver { return &transmissionResolver{r} }
 
 type chunkResolver struct{ *Resolver }
+type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
 type streamResolver struct{ *Resolver }
 type subscriptionResolver struct{ *Resolver }

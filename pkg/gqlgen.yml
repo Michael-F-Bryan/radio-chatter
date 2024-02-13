@@ -4,12 +4,12 @@ schema:
 
 # Where should the generated server code go?
 exec:
-  filename: graphql/generated.go
+  filename: graphql/server.generated.go
   package: graphql
 
 # Where should any generated models go?
 model:
-  filename: graphql/model/models_gen.go
+  filename: graphql/model/models.generated.go
   package: model
 
 # Where should the resolver implementations go?

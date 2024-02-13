@@ -42,6 +42,7 @@ type Config struct {
 
 type ResolverRoot interface {
 	Chunk() ChunkResolver
+	Mutation() MutationResolver
 	Query() QueryResolver
 	Stream() StreamResolver
 	Subscription() SubscriptionResolver
@@ -49,6 +50,7 @@ type ResolverRoot interface {
 }
 
 type DirectiveRoot struct {
+	Authenticated func(ctx context.Context, obj interface{}, next graphql.Resolver) (res interface{}, err error)
 }
 
 type ComplexityRoot struct {
@@ -65,6 +67,11 @@ type ComplexityRoot struct {
 	ChunksConnection struct {
 		Edges    func(childComplexity int) int
 		PageInfo func(childComplexity int) int
+	}
+
+	Mutation struct {
+		RegisterStream func(childComplexity int, input model.RegisterStreamVariables) int
+		RemoveStream   func(childComplexity int, id string) int
 	}
 
 	PageInfo struct {
@@ -119,6 +126,10 @@ type ComplexityRoot struct {
 type ChunkResolver interface {
 	DownloadURL(ctx context.Context, obj *model.Chunk) (*string, error)
 	Transmissions(ctx context.Context, obj *model.Chunk, after *string, count int) (*model.TransmissionsConnection, error)
+}
+type MutationResolver interface {
+	RegisterStream(ctx context.Context, input model.RegisterStreamVariables) (*model.Stream, error)
+	RemoveStream(ctx context.Context, id string) (*model.Stream, error)
 }
 type QueryResolver interface {
 	GetStreams(ctx context.Context, after *string, count int) (*model.StreamsConnection, error)
@@ -223,6 +234,30 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.ChunksConnection.PageInfo(childComplexity), true
+
+	case "Mutation.registerStream":
+		if e.complexity.Mutation.RegisterStream == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_registerStream_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.RegisterStream(childComplexity, args["input"].(model.RegisterStreamVariables)), true
+
+	case "Mutation.removeStream":
+		if e.complexity.Mutation.RemoveStream == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_removeStream_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.RemoveStream(childComplexity, args["id"].(string)), true
 
 	case "PageInfo.endCursor":
 		if e.complexity.PageInfo.EndCursor == nil {
@@ -445,7 +480,9 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	rc := graphql.GetOperationContext(ctx)
 	ec := executionContext{rc, e, 0, 0, make(chan graphql.DeferredResult)}
-	inputUnmarshalMap := graphql.BuildUnmarshalerMap()
+	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
+		ec.unmarshalInputRegisterStreamVariables,
+	)
 	first := true
 
 	switch rc.Operation.Operation {
@@ -478,6 +515,21 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 			}
 
 			return &response
+		}
+	case ast.Mutation:
+		return func(ctx context.Context) *graphql.Response {
+			if !first {
+				return nil
+			}
+			first = false
+			ctx = graphql.WithUnmarshalerMap(ctx, inputUnmarshalMap)
+			data := ec._Mutation(ctx, rc.Operation.SelectionSet)
+			var buf bytes.Buffer
+			data.MarshalGQL(&buf)
+
+			return &graphql.Response{
+				Data: buf.Bytes(),
+			}
 		}
 	case ast.Subscription:
 		next := ec._Subscription(ctx, rc.Operation.SelectionSet)
@@ -584,6 +636,36 @@ func (ec *executionContext) field_Chunk_transmissions_args(ctx context.Context, 
 		}
 	}
 	args["count"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_registerStream_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 model.RegisterStreamVariables
+	if tmp, ok := rawArgs["input"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
+		arg0, err = ec.unmarshalNRegisterStreamVariables2githubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐRegisterStreamVariables(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_removeStream_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 string
+	if tmp, ok := rawArgs["id"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+		arg0, err = ec.unmarshalNID2string(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["id"] = arg0
 	return args, nil
 }
 
@@ -1160,6 +1242,184 @@ func (ec *executionContext) fieldContext_ChunksConnection_pageInfo(ctx context.C
 			}
 			return nil, fmt.Errorf("no field named %q was found under type PageInfo", field.Name)
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_registerStream(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_registerStream(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		directive0 := func(rctx context.Context) (interface{}, error) {
+			ctx = rctx // use context from middleware stack in children
+			return ec.resolvers.Mutation().RegisterStream(rctx, fc.Args["input"].(model.RegisterStreamVariables))
+		}
+		directive1 := func(ctx context.Context) (interface{}, error) {
+			if ec.directives.Authenticated == nil {
+				return nil, errors.New("directive authenticated is not implemented")
+			}
+			return ec.directives.Authenticated(ctx, nil, directive0)
+		}
+
+		tmp, err := directive1(rctx)
+		if err != nil {
+			return nil, graphql.ErrorOnPath(ctx, err)
+		}
+		if tmp == nil {
+			return nil, nil
+		}
+		if data, ok := tmp.(*model.Stream); ok {
+			return data, nil
+		}
+		return nil, fmt.Errorf(`unexpected type %T from directive, should be *github.com/Michael-F-Bryan/radio-chatter/pkg/graphql/model.Stream`, tmp)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.Stream)
+	fc.Result = res
+	return ec.marshalNStream2ᚖgithubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐStream(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_registerStream(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Stream_id(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Stream_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_Stream_updatedAt(ctx, field)
+			case "displayName":
+				return ec.fieldContext_Stream_displayName(ctx, field)
+			case "url":
+				return ec.fieldContext_Stream_url(ctx, field)
+			case "chunks":
+				return ec.fieldContext_Stream_chunks(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Stream", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_registerStream_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_removeStream(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_removeStream(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		directive0 := func(rctx context.Context) (interface{}, error) {
+			ctx = rctx // use context from middleware stack in children
+			return ec.resolvers.Mutation().RemoveStream(rctx, fc.Args["id"].(string))
+		}
+		directive1 := func(ctx context.Context) (interface{}, error) {
+			if ec.directives.Authenticated == nil {
+				return nil, errors.New("directive authenticated is not implemented")
+			}
+			return ec.directives.Authenticated(ctx, nil, directive0)
+		}
+
+		tmp, err := directive1(rctx)
+		if err != nil {
+			return nil, graphql.ErrorOnPath(ctx, err)
+		}
+		if tmp == nil {
+			return nil, nil
+		}
+		if data, ok := tmp.(*model.Stream); ok {
+			return data, nil
+		}
+		return nil, fmt.Errorf(`unexpected type %T from directive, should be *github.com/Michael-F-Bryan/radio-chatter/pkg/graphql/model.Stream`, tmp)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.Stream)
+	fc.Result = res
+	return ec.marshalNStream2ᚖgithubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐStream(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_removeStream(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Stream_id(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Stream_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_Stream_updatedAt(ctx, field)
+			case "displayName":
+				return ec.fieldContext_Stream_displayName(ctx, field)
+			case "url":
+				return ec.fieldContext_Stream_url(ctx, field)
+			case "chunks":
+				return ec.fieldContext_Stream_chunks(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Stream", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_removeStream_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -4464,6 +4724,40 @@ func (ec *executionContext) fieldContext___Type_specifiedByURL(ctx context.Conte
 
 // region    **************************** input.gotpl *****************************
 
+func (ec *executionContext) unmarshalInputRegisterStreamVariables(ctx context.Context, obj interface{}) (model.RegisterStreamVariables, error) {
+	var it model.RegisterStreamVariables
+	asMap := map[string]interface{}{}
+	for k, v := range obj.(map[string]interface{}) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"displayName", "url"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "displayName":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("displayName"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DisplayName = data
+		case "url":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("url"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.URL = data
+		}
+	}
+
+	return it, nil
+}
+
 // endregion **************************** input.gotpl *****************************
 
 // region    ************************** interface.gotpl ***************************
@@ -4645,6 +4939,62 @@ func (ec *executionContext) _ChunksConnection(ctx context.Context, sel ast.Selec
 			out.Values[i] = ec._ChunksConnection_edges(ctx, field, obj)
 		case "pageInfo":
 			out.Values[i] = ec._ChunksConnection_pageInfo(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var mutationImplementors = []string{"Mutation"}
+
+func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mutationImplementors)
+	ctx = graphql.WithFieldContext(ctx, &graphql.FieldContext{
+		Object: "Mutation",
+	})
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		innerCtx := graphql.WithRootFieldContext(ctx, &graphql.RootFieldContext{
+			Object: field.Name,
+			Field:  field,
+		})
+
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Mutation")
+		case "registerStream":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_registerStream(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "removeStream":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_removeStream(ctx, field)
+			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -5575,6 +5925,11 @@ func (ec *executionContext) marshalNPageInfo2ᚖgithubᚗcomᚋMichaelᚑFᚑBry
 		return graphql.Null
 	}
 	return ec._PageInfo(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNRegisterStreamVariables2githubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐRegisterStreamVariables(ctx context.Context, v interface{}) (model.RegisterStreamVariables, error) {
+	res, err := ec.unmarshalInputRegisterStreamVariables(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalNStream2githubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐStream(ctx context.Context, sel ast.SelectionSet, v model.Stream) graphql.Marshaler {
