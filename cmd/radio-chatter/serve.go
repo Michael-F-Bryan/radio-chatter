@@ -25,6 +25,7 @@ func serveCmd() *cobra.Command {
 		Run:   func(cmd *cobra.Command, args []string) { serve(cmd.Context(), fmt.Sprintf("%s:%d", host, port)) },
 	}
 
+	registerStorageFlags(cmd.Flags())
 	registerDatabaseFlags(cmd.Flags())
 
 	cmd.Flags().StringVarP(&host, "host", "H", "127.0.0.1", "The host to serve on")
@@ -38,11 +39,12 @@ func serveCmd() *cobra.Command {
 func serve(ctx context.Context, addr string) {
 	logger := zap.L()
 
+	storage := setupStorage(logger)
 	db := setupDatabase(ctx, logger)
 
 	server := http.Server{
 		Addr:    addr,
-		Handler: handlers.Router(logger, db),
+		Handler: handlers.Router(logger, db, storage),
 	}
 
 	go func() {

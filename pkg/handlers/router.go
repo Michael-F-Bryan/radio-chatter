@@ -9,19 +9,22 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/99designs/gqlgen/graphql/playground"
+	radiochatter "github.com/Michael-F-Bryan/radio-chatter/pkg"
 	"github.com/Michael-F-Bryan/radio-chatter/pkg/graphql"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	"github.com/vektah/gqlparser/v2/gqlerror"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
-func Router(logger *zap.Logger, db *gorm.DB) http.Handler {
+func Router(logger *zap.Logger, db *gorm.DB, storage radiochatter.BlobStorage) http.Handler {
 	r := mux.NewRouter()
 
 	resolver := &graphql.Resolver{
-		DB:     db,
-		Logger: logger.Named("graphql"),
+		DB:      db,
+		Logger:  logger.Named("graphql"),
+		Storage: storage,
 	}
 	srv := handler.NewDefaultServer(graphql.NewExecutableSchema(graphql.Config{
 		Resolvers: resolver,
@@ -29,7 +32,9 @@ func Router(logger *zap.Logger, db *gorm.DB) http.Handler {
 			Authenticated: isAuthenticatedDirective,
 		},
 	}))
+	srv.SetRecoverFunc(recoverFunc)
 	srv.AddTransport(&transport.Websocket{})
+	srv.AroundResponses(logGraphQLErrors)
 
 	r.Path("/healthz").Methods(http.MethodHead, http.MethodGet).Handler(Healthz(db, logger))
 	r.Path("/graphql").Schemes("http", "https", "ws", "wss").Handler(srv)
@@ -91,5 +96,42 @@ func (r *recoveryLogger) Println(values ...any) {
 func isAuthenticatedDirective(ctx context.Context, obj interface{}, next gql.Resolver) (res interface{}, err error) {
 	logger := GetLogger(ctx)
 	logger.Info("Checking auth", zap.Any("obj", obj))
+	// TODO: Actually check authentication
 	return next(ctx)
+}
+
+func recoverFunc(ctx context.Context, err interface{}) (userMessage error) {
+	logger := GetLogger(ctx)
+
+	op := gql.GetOperationContext(ctx)
+
+	logger.Error(
+		"A GraphQL resolver panicked",
+		zap.String("op", op.OperationName),
+		zap.String("query", op.RawQuery),
+		zap.Any("variables", op.Variables),
+		zap.Any("payload", err),
+	)
+
+	return gqlerror.Errorf("Internal server error!")
+}
+
+func logGraphQLErrors(ctx context.Context, next gql.ResponseHandler) *gql.Response {
+	logger := GetLogger(ctx)
+	op := gql.GetOperationContext(ctx)
+
+	response := next(ctx)
+
+	if len(response.Errors) > 0 {
+		logger.Warn(
+			"Resolve error",
+			zap.Stringer("path", response.Path),
+			zap.String("op", op.OperationName),
+			zap.String("query", op.RawQuery),
+			zap.Any("variables", op.Variables),
+			zap.Error(response.Errors),
+		)
+	}
+
+	return response
 }

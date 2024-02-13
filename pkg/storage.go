@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -13,6 +14,8 @@ import (
 
 	"go.uber.org/zap"
 )
+
+var ErrBlobNotFound = errors.New("blob not found")
 
 // BlobStorage is a content-addressable storage layer.
 //
@@ -30,6 +33,20 @@ type BlobKey [sha256.Size]byte
 
 func (b BlobKey) String() string {
 	return hex.EncodeToString(b[:])
+}
+
+func ParseBlobKey(key string) (BlobKey, error) {
+	var buffer [sha256.Size]byte
+
+	bytesDecoded, err := hex.Decode(buffer[:], []byte(key))
+	if err != nil {
+		return BlobKey{}, err
+	}
+	if bytesDecoded != len(buffer) {
+		return BlobKey{}, errors.New("incorrect blob key size")
+	}
+
+	return BlobKey(buffer), nil
 }
 
 func blobKeyForBytes(data []byte) BlobKey {
@@ -52,7 +69,12 @@ func (s *onDiskStorage) path(item BlobKey) string {
 func (s *onDiskStorage) Link(ctx context.Context, key BlobKey) (*url.URL, error) {
 	filename := s.path(key)
 
-	if _, err := os.Stat(filename); err != nil {
+	_, err := os.Stat(filename)
+
+	if os.IsNotExist(err) {
+		return nil, fmt.Errorf("unable to find %q: %w", filename, ErrBlobNotFound)
+	}
+	if err != nil {
 		return nil, fmt.Errorf("unable to find %q: %w", filename, err)
 	}
 

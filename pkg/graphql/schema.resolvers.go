@@ -15,8 +15,7 @@ import (
 
 // DownloadURL is the resolver for the downloadUrl field.
 func (r *chunkResolver) DownloadURL(ctx context.Context, obj *model.Chunk) (*string, error) {
-	// TODO: Signed URLs
-	return nil, nil
+	return signedURL(ctx, r.Logger, r.Storage, obj.Sha256)
 }
 
 // Transmissions is the resolver for the transmissions field.
@@ -146,8 +145,7 @@ func (r *subscriptionResolver) Transmission(ctx context.Context) (<-chan *model.
 
 // DownloadURL is the resolver for the downloadUrl field.
 func (r *transmissionResolver) DownloadURL(ctx context.Context, obj *model.Transmission) (*string, error) {
-	// TODO: Signed URLs
-	return nil, nil
+	return signedURL(ctx, r.Logger, r.Storage, obj.Sha256)
 }
 
 // Chunk returns ChunkResolver implementation.

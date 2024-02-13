@@ -156,3 +156,27 @@ func pollForUpdates[Model any, Generated any](
 
 	return ch
 }
+
+func signedURL(ctx context.Context, logger *zap.Logger, storage radiochatter.BlobStorage, sha256 string) (*string, error) {
+	key, err := radiochatter.ParseBlobKey(sha256)
+	if err != nil {
+		return nil, err
+	}
+
+	url, err := storage.Link(ctx, key)
+	if errors.Is(err, radiochatter.ErrBlobNotFound) {
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
+
+	logger.Debug(
+		"Generated a signed URL",
+		zap.Stringer("key", key),
+		zap.Stringer("url", url),
+	)
+
+	u := url.String()
+
+	return &u, nil
+}
