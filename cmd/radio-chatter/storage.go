@@ -18,6 +18,10 @@ func registerStorageFlags(flags *pflag.FlagSet) {
 }
 
 func setupStorage(logger *zap.Logger) radiochatter.BlobStorage {
+	if logger.Name() != "storage" {
+		logger = logger.Named("storage")
+	}
+
 	baseDir := StorageDir
 
 	if baseDir == "" {

@@ -25,8 +25,7 @@ func download(cmd *cobra.Command, args []string) {
 	logger := zap.L()
 
 	group, ctx := errgroup.WithContext(ctx)
-	storage := setupStorage(logger.Named("storage"))
-
+	storage := setupStorage(logger)
 	db := setupDatabase(ctx, logger)
 
 	var streams []radiochatter.Stream
