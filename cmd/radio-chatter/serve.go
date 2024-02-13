@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Michael-F-Bryan/radio-chatter/pkg/handler"
+	"github.com/Michael-F-Bryan/radio-chatter/pkg/handlers"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -42,7 +42,7 @@ func serve(ctx context.Context, addr string) {
 
 	server := http.Server{
 		Addr:    addr,
-		Handler: handler.Router(logger, db),
+		Handler: handlers.Router(logger, db),
 	}
 
 	go func() {
