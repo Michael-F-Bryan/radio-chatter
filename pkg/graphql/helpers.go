@@ -38,6 +38,10 @@ func decodeModelId[T any](encoded string) (uint, error) {
 	}
 
 	pieces := strings.SplitN(string(s), "#", 2)
+	if len(pieces) != 2 {
+		return 0, errors.New("Invalid ID format")
+	}
+
 	typeName := pieces[0]
 	rawId := pieces[1]
 
