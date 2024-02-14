@@ -9,6 +9,7 @@ import (
 	"time"
 
 	radiochatter "github.com/Michael-F-Bryan/radio-chatter/pkg"
+	"github.com/Michael-F-Bryan/radio-chatter/pkg/graphql/generated"
 	"github.com/Michael-F-Bryan/radio-chatter/pkg/graphql/model"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -170,23 +171,23 @@ func (r *transmissionResolver) DownloadURL(ctx context.Context, obj *model.Trans
 	return signedURL(ctx, r.Logger, r.Storage, obj.Sha256)
 }
 
-// Chunk returns ChunkResolver implementation.
-func (r *Resolver) Chunk() ChunkResolver { return &chunkResolver{r} }
+// Chunk returns generated.ChunkResolver implementation.
+func (r *Resolver) Chunk() generated.ChunkResolver { return &chunkResolver{r} }
 
-// Mutation returns MutationResolver implementation.
-func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
+// Mutation returns generated.MutationResolver implementation.
+func (r *Resolver) Mutation() generated.MutationResolver { return &mutationResolver{r} }
 
-// Query returns QueryResolver implementation.
-func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
+// Query returns generated.QueryResolver implementation.
+func (r *Resolver) Query() generated.QueryResolver { return &queryResolver{r} }
 
-// Stream returns StreamResolver implementation.
-func (r *Resolver) Stream() StreamResolver { return &streamResolver{r} }
+// Stream returns generated.StreamResolver implementation.
+func (r *Resolver) Stream() generated.StreamResolver { return &streamResolver{r} }
 
-// Subscription returns SubscriptionResolver implementation.
-func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionResolver{r} }
+// Subscription returns generated.SubscriptionResolver implementation.
+func (r *Resolver) Subscription() generated.SubscriptionResolver { return &subscriptionResolver{r} }
 
-// Transmission returns TransmissionResolver implementation.
-func (r *Resolver) Transmission() TransmissionResolver { return &transmissionResolver{r} }
+// Transmission returns generated.TransmissionResolver implementation.
+func (r *Resolver) Transmission() generated.TransmissionResolver { return &transmissionResolver{r} }
 
 type chunkResolver struct{ *Resolver }
 type mutationResolver struct{ *Resolver }

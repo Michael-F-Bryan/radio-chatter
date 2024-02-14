@@ -4,8 +4,8 @@ schema:
 
 # Where should the generated server code go?
 exec:
-  filename: graphql/server.generated.go
-  package: graphql
+  filename: graphql/generated/server.generated.go
+  package: generated
 
 # Where should any generated models go?
 model:

@@ -8,11 +8,18 @@ import (
 )
 
 type paginator[Model any, GeneratedModel any, Connection any] struct {
-	mapModel    func(model Model) GeneratedModel
-	makeConn    func(edges []GeneratedModel, page model.PageInfo) Connection
-	Filter      *Model
+	// Convert the model from the database type to its GraphQL counterpart.
+	mapModel func(model Model) GeneratedModel
+	// Use the GraphQL model and page info to create a Connection object.
+	makeConn func(edges []GeneratedModel, page model.PageInfo) Connection
+	// A simple filter which looks for items where the model's field are set to
+	// a particular value.
+	Filter *Model
+	// A callback fired just before executing the query, typically used for more
+	// complex filtering.
 	BeforeQuery func(db *gorm.DB) *gorm.DB
-	Limit       int
+	// The maximum number of results this query is allowed to return.
+	Limit int
 }
 
 func (p paginator[Model, GeneratedModel, Connection]) Page(db *gorm.DB, after *string, count int) (*Connection, error) {
@@ -34,9 +41,7 @@ func (p paginator[Model, GeneratedModel, Connection]) Page(db *gorm.DB, after *s
 		}
 		// Note: We explicitly use the table name (e.g. "transmissions.id") so
 		// later steps (e.g. a join) can't introduce ambiguities.
-		stmt := gorm.Statement{DB: db}
-		_ = stmt.Parse(dummy)
-		db = db.Where(stmt.Schema.Table+".id > ?", id)
+		db = db.Where(tableName[Model](db)+".id > ?", id)
 	}
 
 	if p.Filter != nil {
@@ -67,4 +72,11 @@ func (p paginator[Model, GeneratedModel, Connection]) Page(db *gorm.DB, after *s
 
 	conn := p.makeConn(edges, info)
 	return &conn, nil
+}
+
+func tableName[T any](db *gorm.DB) string {
+	var dummy T
+	stmt := gorm.Statement{DB: db}
+	_ = stmt.Parse(dummy)
+	return stmt.Schema.Table
 }

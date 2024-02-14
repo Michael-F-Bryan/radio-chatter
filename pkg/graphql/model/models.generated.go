@@ -14,12 +14,16 @@ type Node interface {
 }
 
 type Chunk struct {
-	ID            string                   `json:"id"`
-	CreatedAt     time.Time                `json:"createdAt"`
-	UpdatedAt     time.Time                `json:"updatedAt"`
-	Timestamp     time.Time                `json:"timestamp"`
-	Sha256        string                   `json:"sha256"`
-	DownloadURL   *string                  `json:"downloadUrl,omitempty"`
+	ID        string    `json:"id"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+	// When the chunk was first broadcast.
+	Timestamp time.Time `json:"timestamp"`
+	// A SHA-256 checksum of the chunk's audio file.
+	Sha256 string `json:"sha256"`
+	// Where the chunk's audio file can be downloaded from.
+	DownloadURL *string `json:"downloadUrl,omitempty"`
+	// Iterate over the radio messages detected in the chunk.
 	Transmissions *TransmissionsConnection `json:"transmissions"`
 }
 
@@ -50,13 +54,21 @@ type RegisterStreamVariables struct {
 	URL         string `json:"url"`
 }
 
+// A stream to monitor and extract transmissions from.
 type Stream struct {
-	ID            string                   `json:"id"`
-	CreatedAt     time.Time                `json:"createdAt"`
-	UpdatedAt     time.Time                `json:"updatedAt"`
-	DisplayName   string                   `json:"displayName"`
-	URL           string                   `json:"url"`
-	Chunks        *ChunksConnection        `json:"chunks"`
+	ID        string    `json:"id"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+	// The human-friendly name for this stream.
+	DisplayName string `json:"displayName"`
+	// Where the stream can be downloaded from.
+	//
+	// This is typically a URL, but can technically be anything ffmpeg allows as an
+	// input.
+	URL string `json:"url"`
+	// Iterate over the raw chunks of audio downloaded for this stream.
+	Chunks *ChunksConnection `json:"chunks"`
+	// Iterate over the radio messages detected in the stream.
 	Transmissions *TransmissionsConnection `json:"transmissions"`
 }
 
@@ -73,15 +85,21 @@ type StreamsConnection struct {
 type Subscription struct {
 }
 
+// A radio transmission.
 type Transmission struct {
-	ID          string    `json:"id"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
-	Timestamp   time.Time `json:"timestamp"`
-	Length      float64   `json:"length"`
-	Sha256      string    `json:"sha256"`
-	DownloadURL *string   `json:"downloadUrl,omitempty"`
-	Content     *string   `json:"content,omitempty"`
+	ID        string    `json:"id"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+	// When the transmission was first broadcast.
+	Timestamp time.Time `json:"timestamp"`
+	// How long is the transmission, in seconds?
+	Length float64 `json:"length"`
+	// A SHA-256 checksum of the chunk's audio file.
+	Sha256 string `json:"sha256"`
+	// Where the chunk's audio file can be downloaded from.
+	DownloadURL *string `json:"downloadUrl,omitempty"`
+	// A transcription of the transmission.
+	Content *string `json:"content,omitempty"`
 }
 
 func (Transmission) IsNode()                      {}

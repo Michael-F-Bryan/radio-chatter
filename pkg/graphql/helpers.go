@@ -62,8 +62,8 @@ func typeOf[T any]() reflect.Type {
 func streamToGraphQL(t radiochatter.Stream) model.Stream {
 	return model.Stream{
 		ID:          modelId(t),
-		CreatedAt:   t.CreatedAt,
-		UpdatedAt:   t.UpdatedAt,
+		CreatedAt:   t.CreatedAt.UTC(),
+		UpdatedAt:   t.UpdatedAt.UTC(),
 		DisplayName: t.DisplayName,
 		URL:         t.Url,
 	}
@@ -71,8 +71,8 @@ func streamToGraphQL(t radiochatter.Stream) model.Stream {
 func transmissionToGraphQL(t radiochatter.Transmission) model.Transmission {
 	return model.Transmission{
 		ID:        modelId(t),
-		CreatedAt: t.CreatedAt,
-		UpdatedAt: t.UpdatedAt,
+		CreatedAt: t.CreatedAt.UTC(),
+		UpdatedAt: t.UpdatedAt.UTC(),
 		Timestamp: t.TimeStamp,
 		Length:    t.Length.Seconds(),
 		Sha256:    t.Sha256,
@@ -82,8 +82,8 @@ func transmissionToGraphQL(t radiochatter.Transmission) model.Transmission {
 func chunkToGraphQL(t radiochatter.Chunk) model.Chunk {
 	return model.Chunk{
 		ID:        modelId(t),
-		CreatedAt: t.CreatedAt,
-		UpdatedAt: t.UpdatedAt,
+		CreatedAt: t.CreatedAt.UTC(),
+		UpdatedAt: t.UpdatedAt.UTC(),
 		Timestamp: t.TimeStamp,
 		Sha256:    t.Sha256,
 	}

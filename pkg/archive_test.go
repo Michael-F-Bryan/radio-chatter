@@ -332,11 +332,11 @@ func TestSplitAndArchiveRecording(t *testing.T) {
 	assert.Equal(t, 3, len(stream.Chunks))
 	transmisions := stream.Chunks[1].Transmissions
 	assert.Equal(t, 7, len(transmisions))
-	sort.Slice(transmisions, func(i, j int) bool {return transmisions[i].TimeStamp.Before(transmisions[j].TimeStamp)})
+	sort.Slice(transmisions, func(i, j int) bool { return transmisions[i].TimeStamp.Before(transmisions[j].TimeStamp) })
 	transmission := stream.Chunks[1].Transmissions[0]
 	assert.Equal(t, "7d865c69589b323c95dcb2c5aab008559efcfe226284aa8a70db5d0c01f04e71", transmission.Sha256)
 	assert.Equal(t, stream.Chunks[1].ID, transmission.ChunkID)
-	assert.Equal(t, 8028800* time.Microsecond, transmission.Length)
+	assert.Equal(t, 8028800*time.Microsecond, transmission.Length)
 }
 
 func testDatabase(ctx context.Context, t *testing.T) *gorm.DB {

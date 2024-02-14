@@ -22,14 +22,33 @@ interface Node {
   updatedAt: Time!
 }
 
+"""
+A stream to monitor and extract transmissions from.
+"""
 type Stream implements Node {
   id: ID!
   createdAt: Time!
   updatedAt: Time!
 
+  """The human-friendly name for this stream."""
   displayName: String!
+
+  """
+  Where the stream can be downloaded from.
+
+  This is typically a URL, but can technically be anything ffmpeg allows as an
+  input.
+  """
   url: String!
+
+  """
+  Iterate over the raw chunks of audio downloaded for this stream.
+  """
   chunks(after: ID, count: Int! = 30): ChunksConnection!
+
+  """
+  Iterate over the radio messages detected in the stream.
+  """
   transmissions(after: ID, count: Int! = 30): TransmissionsConnection!
 }
 
@@ -43,10 +62,17 @@ type Chunk implements Node {
   createdAt: Time!
   updatedAt: Time!
 
+  """When the chunk was first broadcast."""
   timestamp: Time!
+  """A SHA-256 checksum of the chunk's audio file."""
   sha256: String!
+
+  """Where the chunk's audio file can be downloaded from."""
   downloadUrl: String
 
+  """
+  Iterate over the radio messages detected in the chunk.
+  """
   transmissions(after: ID, count: Int! = 30): TransmissionsConnection!
 }
 
@@ -55,15 +81,23 @@ type TransmissionsConnection {
   pageInfo: PageInfo!
 }
 
+"""
+A radio transmission.
+"""
 type Transmission implements Node {
   id: ID!
   createdAt: Time!
   updatedAt: Time!
 
+  """When the transmission was first broadcast."""
   timestamp: Time!
+  """How long is the transmission, in seconds?"""
   length: Float!
+  """A SHA-256 checksum of the chunk's audio file."""
   sha256: String!
+  """Where the chunk's audio file can be downloaded from."""
   downloadUrl: String
+  """A transcription of the transmission."""
   content: String
 }
 
@@ -73,9 +107,13 @@ type StreamsConnection {
 }
 
 type Query {
+  """Iterate over all active streams."""
   getStreams(after: ID, count: Int! = 10): StreamsConnection!
+  """Look up a stream by its ID."""
   getStreamById(id: ID!): Stream!
+  """Look up a chunk by its ID."""
   getChunkById(id: ID!): Chunk!
+  """Look up a transmission by its ID."""
   getTransmissionById(id: ID!): Transmission!
 }
 
@@ -85,11 +123,15 @@ input RegisterStreamVariables {
 }
 
 type Mutation {
+  """Register a new stream."""
   registerStream(input: RegisterStreamVariables!): Stream! @authenticated()
+  """Remove a stream."""
   removeStream(id: ID!): Stream! @authenticated()
 }
 
 type Subscription {
+  """Get chunks as they are recorded."""
   chunk: Chunk!
+  """Get transmissions as they are detected."""
   transmission: Transmission!
 }
