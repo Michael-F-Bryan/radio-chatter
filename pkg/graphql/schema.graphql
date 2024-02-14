@@ -10,15 +10,25 @@ scalar Time
 """Users need to be authenticated to access this item."""
 directive @authenticated on FIELD_DEFINITION
 
+"""Information about a page in a paginated query."""
 type PageInfo {
+  """Are there any more pages?"""
   hasNextPage: Boolean!
+  """How many items were in this page?"""
   length: Int!
+  """
+  A cursor that can be passed as an "after" parameter to read the next page.
+  """
   endCursor: ID
 }
 
+"""Properties shared by all items stored in the database."""
 interface Node {
+  """A unique ID for this item."""
   id: ID!
+  """When the item was created."""
   createdAt: Time!
+  """When the item was last updated."""
   updatedAt: Time!
 }
 
@@ -66,7 +76,6 @@ type Chunk implements Node {
   timestamp: Time!
   """A SHA-256 checksum of the chunk's audio file."""
   sha256: String!
-
   """Where the chunk's audio file can be downloaded from."""
   downloadUrl: String
 
@@ -97,7 +106,7 @@ type Transmission implements Node {
   sha256: String!
   """Where the chunk's audio file can be downloaded from."""
   downloadUrl: String
-  """A transcription of the transmission."""
+  """A transcription of the transmission, if available."""
   content: String
 }
 
@@ -110,11 +119,11 @@ type Query {
   """Iterate over all active streams."""
   getStreams(after: ID, count: Int! = 10): StreamsConnection!
   """Look up a stream by its ID."""
-  getStreamById(id: ID!): Stream!
+  getStreamById(id: ID!): Stream
   """Look up a chunk by its ID."""
-  getChunkById(id: ID!): Chunk!
+  getChunkById(id: ID!): Chunk
   """Look up a transmission by its ID."""
-  getTransmissionById(id: ID!): Transmission!
+  getTransmissionById(id: ID!): Transmission
 }
 
 input RegisterStreamVariables {
