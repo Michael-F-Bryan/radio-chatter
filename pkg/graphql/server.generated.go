@@ -88,12 +88,13 @@ type ComplexityRoot struct {
 	}
 
 	Stream struct {
-		Chunks      func(childComplexity int, after *string, count int) int
-		CreatedAt   func(childComplexity int) int
-		DisplayName func(childComplexity int) int
-		ID          func(childComplexity int) int
-		URL         func(childComplexity int) int
-		UpdatedAt   func(childComplexity int) int
+		Chunks        func(childComplexity int, after *string, count int) int
+		CreatedAt     func(childComplexity int) int
+		DisplayName   func(childComplexity int) int
+		ID            func(childComplexity int) int
+		Transmissions func(childComplexity int, after *string, count int) int
+		URL           func(childComplexity int) int
+		UpdatedAt     func(childComplexity int) int
 	}
 
 	StreamsConnection struct {
@@ -139,6 +140,7 @@ type QueryResolver interface {
 }
 type StreamResolver interface {
 	Chunks(ctx context.Context, obj *model.Stream, after *string, count int) (*model.ChunksConnection, error)
+	Transmissions(ctx context.Context, obj *model.Stream, after *string, count int) (*model.TransmissionsConnection, error)
 }
 type SubscriptionResolver interface {
 	Chunk(ctx context.Context) (<-chan *model.Chunk, error)
@@ -360,6 +362,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Stream.ID(childComplexity), true
+
+	case "Stream.transmissions":
+		if e.complexity.Stream.Transmissions == nil {
+			break
+		}
+
+		args, err := ec.field_Stream_transmissions_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Stream.Transmissions(childComplexity, args["after"].(*string), args["count"].(int)), true
 
 	case "Stream.url":
 		if e.complexity.Stream.URL == nil {
@@ -754,6 +768,30 @@ func (ec *executionContext) field_Query_getTransmissionById_args(ctx context.Con
 }
 
 func (ec *executionContext) field_Stream_chunks_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 *string
+	if tmp, ok := rawArgs["after"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("after"))
+		arg0, err = ec.unmarshalOID2ᚖstring(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["after"] = arg0
+	var arg1 int
+	if tmp, ok := rawArgs["count"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("count"))
+		arg1, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["count"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Stream_transmissions_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
 	var arg0 *string
@@ -1317,6 +1355,8 @@ func (ec *executionContext) fieldContext_Mutation_registerStream(ctx context.Con
 				return ec.fieldContext_Stream_url(ctx, field)
 			case "chunks":
 				return ec.fieldContext_Stream_chunks(ctx, field)
+			case "transmissions":
+				return ec.fieldContext_Stream_transmissions(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Stream", field.Name)
 		},
@@ -1406,6 +1446,8 @@ func (ec *executionContext) fieldContext_Mutation_removeStream(ctx context.Conte
 				return ec.fieldContext_Stream_url(ctx, field)
 			case "chunks":
 				return ec.fieldContext_Stream_chunks(ctx, field)
+			case "transmissions":
+				return ec.fieldContext_Stream_transmissions(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Stream", field.Name)
 		},
@@ -1665,6 +1707,8 @@ func (ec *executionContext) fieldContext_Query_getStreamById(ctx context.Context
 				return ec.fieldContext_Stream_url(ctx, field)
 			case "chunks":
 				return ec.fieldContext_Stream_chunks(ctx, field)
+			case "transmissions":
+				return ec.fieldContext_Stream_transmissions(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Stream", field.Name)
 		},
@@ -2237,6 +2281,67 @@ func (ec *executionContext) fieldContext_Stream_chunks(ctx context.Context, fiel
 	return fc, nil
 }
 
+func (ec *executionContext) _Stream_transmissions(ctx context.Context, field graphql.CollectedField, obj *model.Stream) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Stream_transmissions(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Stream().Transmissions(rctx, obj, fc.Args["after"].(*string), fc.Args["count"].(int))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.TransmissionsConnection)
+	fc.Result = res
+	return ec.marshalNTransmissionsConnection2ᚖgithubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐTransmissionsConnection(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Stream_transmissions(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Stream",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "edges":
+				return ec.fieldContext_TransmissionsConnection_edges(ctx, field)
+			case "pageInfo":
+				return ec.fieldContext_TransmissionsConnection_pageInfo(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type TransmissionsConnection", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Stream_transmissions_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _StreamsConnection_edges(ctx context.Context, field graphql.CollectedField, obj *model.StreamsConnection) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_StreamsConnection_edges(ctx, field)
 	if err != nil {
@@ -2285,6 +2390,8 @@ func (ec *executionContext) fieldContext_StreamsConnection_edges(ctx context.Con
 				return ec.fieldContext_Stream_url(ctx, field)
 			case "chunks":
 				return ec.fieldContext_Stream_chunks(ctx, field)
+			case "transmissions":
+				return ec.fieldContext_Stream_transmissions(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Stream", field.Name)
 		},
@@ -5251,6 +5358,42 @@ func (ec *executionContext) _Stream(ctx context.Context, sel ast.SelectionSet, o
 					}
 				}()
 				res = ec._Stream_chunks(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "transmissions":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Stream_transmissions(ctx, field, obj)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}

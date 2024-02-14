@@ -82,6 +82,8 @@ models:
     fields:
       chunks:
         resolver: true
+      transmissions:
+        resolver: true
   Chunk:
     fields:
       transmissions:

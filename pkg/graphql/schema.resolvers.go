@@ -11,6 +11,7 @@ import (
 	radiochatter "github.com/Michael-F-Bryan/radio-chatter/pkg"
 	"github.com/Michael-F-Bryan/radio-chatter/pkg/graphql/model"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 // DownloadURL is the resolver for the downloadUrl field.
@@ -114,6 +115,27 @@ func (r *streamResolver) Chunks(ctx context.Context, obj *model.Stream, after *s
 		},
 		Filter: &radiochatter.Chunk{StreamID: streamId},
 		Limit:  30,
+	}
+
+	return p.Page(r.DB, after, count)
+}
+
+// Transmissions is the resolver for the transmissions field.
+func (r *streamResolver) Transmissions(ctx context.Context, obj *model.Stream, after *string, count int) (*model.TransmissionsConnection, error) {
+	streamId, err := decodeModelId[radiochatter.Stream](obj.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	p := paginator[radiochatter.Transmission, model.Transmission, model.TransmissionsConnection]{
+		mapModel: transmissionToGraphQL,
+		makeConn: func(edges []model.Transmission, page model.PageInfo) model.TransmissionsConnection {
+			return model.TransmissionsConnection{Edges: edges, PageInfo: &page}
+		},
+		BeforeQuery: func(db *gorm.DB) *gorm.DB {
+			return db.Joins("JOIN chunks ON chunks.id = transmissions.chunk_id AND chunks.stream_id = ?", streamId)
+		},
+		Limit: 30,
 	}
 
 	return p.Page(r.DB, after, count)

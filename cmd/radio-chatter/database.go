@@ -15,15 +15,15 @@ import (
 func registerDatabaseFlags(flags *pflag.FlagSet) {
 	flags.String("db", "radio-chatter.sqlite3", "The database to save to")
 	_ = viper.BindPFlag("db.source", flags.Lookup("db"))
-	viper.BindEnv("db.source", "DB_SOURCE")
+	_ = viper.BindEnv("db.source", "DB_SOURCE")
 
 	flags.String("db-driver", "sqlite3", "Which database type to use")
 	_ = viper.BindPFlag("db.driver", flags.Lookup("db-driver"))
-	viper.BindEnv("db.driver", "DB_DRIVER")
+	_ = viper.BindEnv("db.driver", "DB_DRIVER")
 
 	flags.Bool("trace", false, "Trace all SQL queries")
 	_ = viper.BindPFlag("db.trace", flags.Lookup("trace"))
-	viper.BindEnv("db.trace", "DB_TRACE")
+	_ = viper.BindEnv("db.trace", "DB_TRACE")
 }
 
 func setupDatabase(ctx context.Context, logger *zap.Logger, cfg Config) *gorm.DB {

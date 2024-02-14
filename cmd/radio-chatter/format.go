@@ -13,7 +13,7 @@ import (
 func registerFormatFlags(flags *pflag.FlagSet) {
 	flags.StringP("format", "f", "text", "The format use when printing output")
 	_ = viper.BindPFlag("out.format", flags.Lookup("format"))
-	viper.BindEnv("out.format", "FORMAT")
+	_ = viper.BindEnv("out.format", "FORMAT")
 }
 
 type formatter interface {

@@ -51,12 +51,13 @@ type RegisterStreamVariables struct {
 }
 
 type Stream struct {
-	ID          string            `json:"id"`
-	CreatedAt   time.Time         `json:"createdAt"`
-	UpdatedAt   time.Time         `json:"updatedAt"`
-	DisplayName string            `json:"displayName"`
-	URL         string            `json:"url"`
-	Chunks      *ChunksConnection `json:"chunks"`
+	ID            string                   `json:"id"`
+	CreatedAt     time.Time                `json:"createdAt"`
+	UpdatedAt     time.Time                `json:"updatedAt"`
+	DisplayName   string                   `json:"displayName"`
+	URL           string                   `json:"url"`
+	Chunks        *ChunksConnection        `json:"chunks"`
+	Transmissions *TransmissionsConnection `json:"transmissions"`
 }
 
 func (Stream) IsNode()                      {}

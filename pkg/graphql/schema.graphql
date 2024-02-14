@@ -30,6 +30,7 @@ type Stream implements Node {
   displayName: String!
   url: String!
   chunks(after: ID, count: Int! = 30): ChunksConnection!
+  transmissions(after: ID, count: Int! = 30): TransmissionsConnection!
 }
 
 type ChunksConnection {

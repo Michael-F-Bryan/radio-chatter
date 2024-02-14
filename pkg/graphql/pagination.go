@@ -8,34 +8,46 @@ import (
 )
 
 type paginator[Model any, GeneratedModel any, Connection any] struct {
-	mapModel func(model Model) GeneratedModel
-	makeConn func(edges []GeneratedModel, page model.PageInfo) Connection
-	Filter   *Model
-	Limit    int
+	mapModel    func(model Model) GeneratedModel
+	makeConn    func(edges []GeneratedModel, page model.PageInfo) Connection
+	Filter      *Model
+	BeforeQuery func(db *gorm.DB) *gorm.DB
+	Limit       int
 }
 
 func (p paginator[Model, GeneratedModel, Connection]) Page(db *gorm.DB, after *string, count int) (*Connection, error) {
 	var items []Model
-	var conditions []any
+
+	var dummy Model
+	db = db.Model(&dummy)
 
 	if p.Limit > 0 && p.Limit < count {
 		// Make sure users can't ask for too many items at once
 		count = p.Limit
 	}
+	db = db.Limit(count)
 
 	if after != nil {
 		id, err := decodeModelId[Model](*after)
 		if err != nil {
 			return nil, fmt.Errorf("invalid ID: %w", err)
 		}
-		conditions = append(conditions, "id > ?", id)
+		// Note: We explicitly use the table name (e.g. "transmissions.id") so
+		// later steps (e.g. a join) can't introduce ambiguities.
+		stmt := gorm.Statement{DB: db}
+		_ = stmt.Parse(dummy)
+		db = db.Where(stmt.Schema.Table+".id > ?", id)
 	}
 
 	if p.Filter != nil {
 		db = db.Where(p.Filter)
 	}
 
-	if err := db.Find(&items, conditions...).Limit(count).Error; err != nil {
+	if p.BeforeQuery != nil {
+		db = p.BeforeQuery(db)
+	}
+
+	if err := db.Find(&items).Error; err != nil {
 		return nil, err
 	}
 
