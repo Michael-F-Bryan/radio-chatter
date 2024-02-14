@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"os"
 
 	radiochatter "github.com/Michael-F-Bryan/radio-chatter/pkg"
@@ -26,15 +25,16 @@ func streamListCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List all known streams",
-		Run:   func(cmd *cobra.Command, args []string) { streamList(cmd.Context()) },
+		Run:   streamList,
 	}
 
 	return cmd
 }
 
-func streamList(ctx context.Context) {
+func streamList(cmd *cobra.Command, args []string) {
+	ctx := cmd.Context()
 	logger := zap.L()
-	cfg := LoadConfig()
+	cfg := GetConfig(ctx)
 	db := setupDatabase(ctx, logger, cfg)
 
 	var streams []radiochatter.Stream
@@ -62,7 +62,7 @@ func streamAddCmd() *cobra.Command {
 func streamAdd(cmd *cobra.Command, args []string) {
 	ctx := cmd.Context()
 	logger := zap.L()
-	cfg := LoadConfig()
+	cfg := GetConfig(ctx)
 	db := setupDatabase(ctx, logger, cfg)
 
 	stream := radiochatter.Stream{
@@ -101,7 +101,7 @@ func streamRemoveCmd() *cobra.Command {
 func streamRemove(cmd *cobra.Command, args []string) {
 	ctx := cmd.Context()
 	logger := zap.L()
-	cfg := LoadConfig()
+	cfg := GetConfig(ctx)
 	db := setupDatabase(ctx, logger, cfg)
 
 	stream := radiochatter.Stream{DisplayName: args[0]}

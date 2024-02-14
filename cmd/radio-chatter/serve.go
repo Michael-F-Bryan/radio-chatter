@@ -38,7 +38,7 @@ func serveCmd() *cobra.Command {
 func serve(cmd *cobra.Command, args []string) {
 	logger := zap.L()
 	ctx := cmd.Context()
-	cfg := LoadConfig()
+	cfg := GetConfig(ctx)
 
 	storage := setupStorage(logger, cfg.Storage)
 	db := setupDatabase(ctx, logger, cfg)

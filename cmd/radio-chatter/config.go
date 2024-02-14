@@ -1,22 +1,25 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"go.uber.org/zap"
 )
 
-func LoadConfig() Config {
-	var cfg Config
+type configKey struct{}
 
-	if err := viper.Unmarshal(&cfg); err != nil {
-		zap.L().Fatal("Unable to load the config", zap.Error(err))
+func GetConfig(ctx context.Context) Config {
+	cfg, ok := ctx.Value(configKey{}).(Config)
+
+	if !ok {
+		panic("A config hasn't been attached to this context")
 	}
 
 	return cfg
+
 }
 
 func configCmd() *cobra.Command {
@@ -24,7 +27,7 @@ func configCmd() *cobra.Command {
 		Use:   "config",
 		Short: "Print out the current config",
 		Run: func(cmd *cobra.Command, args []string) {
-			cfg := LoadConfig()
+			cfg := GetConfig(cmd.Context())
 			if err := cfg.Format().Print(os.Stdout, cfg); err != nil {
 				zap.L().Fatal("Unable to print the config", zap.Error(err))
 			}

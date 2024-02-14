@@ -23,7 +23,7 @@ func downloadCmd() *cobra.Command {
 func download(cmd *cobra.Command, args []string) {
 	ctx := cmd.Context()
 	logger := zap.L()
-	cfg := LoadConfig()
+	cfg := GetConfig(ctx)
 
 	group, ctx := errgroup.WithContext(ctx)
 	storage := setupStorage(logger, cfg.Storage)

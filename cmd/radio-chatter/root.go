@@ -38,7 +38,25 @@ func beforeAll(cmd *cobra.Command, args []string) {
 	initializeLogger()
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
-	cmd.SetContext(ctx)
+
+	viper.SetConfigName("radio-chatter")
+	viper.AddConfigPath(".")
+	viper.AutomaticEnv()
+
+	if userConfigDir, err := os.UserConfigDir(); err == nil {
+		configDir := path.Join(userConfigDir, radiochatter.PackageIdentifier)
+		viper.AddConfigPath(configDir)
+	}
+
+	_ = viper.ReadInConfig()
+
+	var cfg Config
+
+	if err := viper.Unmarshal(&cfg); err != nil {
+		zap.L().Fatal("Unable to load the config", zap.Error(err))
+	}
+	ctx = context.WithValue(ctx, configKey{}, cfg)
+	zap.L().Debug("Loaded config", zap.Any("settings", cfg))
 
 	post := cmd.PersistentPostRun
 	cmd.PersistentPostRun = func(cmd *cobra.Command, args []string) {
@@ -55,17 +73,7 @@ func beforeAll(cmd *cobra.Command, args []string) {
 		cancel()
 	}()
 
-	viper.SetConfigName("radio-chatter")
-	viper.AddConfigPath(".")
-	viper.AutomaticEnv()
-
-	if userConfigDir, err := os.UserConfigDir(); err == nil {
-		configDir := path.Join(userConfigDir, radiochatter.PackageIdentifier)
-		viper.AddConfigPath(configDir)
-	}
-
-	_ = viper.ReadInConfig()
-	zap.L().Debug("Loaded viper", zap.Any("settings", viper.AllSettings()))
+	cmd.SetContext(ctx)
 }
 
 func initializeLogger() {
