@@ -1,0 +1,71 @@
+version: '3'
+
+services:
+  db:
+    image: postgres:16.2
+    restart: always
+    ports:
+      - 5432:5432
+    environment:
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready", "-d", "postgres"]
+      interval: 30s
+      timeout: 60s
+      retries: 5
+      start_period: 80s
+
+  backend:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://backend:8080/healthz"]
+      interval: 1m30s
+      timeout: 30s
+      retries: 5
+      start_period: 30s
+    command: ["/bin/radio-chatter", "serve", "--dev"]
+    restart: unless-stopped
+    environment:
+      - DB_DRIVER=postgres
+      - DB_SOURCE=host=db user=postgres password=password sslmode=disable
+      - HOST=0.0.0.0
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      - db
+    develop:
+      watch:
+        - path: cmd
+          action: rebuild
+        - path: pkg
+          action: rebuild
+        - path: Dockerfile
+          action: rebuild
+
+  downloader:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    command: ["/bin/radio-chatter", "download", "--dev"]
+    restart: unless-stopped
+    environment:
+      - DB_DRIVER=postgres
+      - DB_SOURCE=host=db user=postgres password=password sslmode=disable
+    depends_on:
+      - db
+      - backend
+    develop:
+      watch:
+        - path: cmd
+          action: rebuild
+        - path: pkg
+          action: rebuild
+        - path: Dockerfile
+          action: rebuild
+
+volumes:
+  dbdata:
