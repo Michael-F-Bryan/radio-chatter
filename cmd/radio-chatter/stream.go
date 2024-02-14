@@ -34,8 +34,8 @@ func streamListCmd() *cobra.Command {
 
 func streamList(ctx context.Context) {
 	logger := zap.L()
-
-	db := setupDatabase(ctx, logger)
+	cfg := LoadConfig()
+	db := setupDatabase(ctx, logger, cfg)
 
 	var streams []radiochatter.Stream
 
@@ -43,7 +43,7 @@ func streamList(ctx context.Context) {
 		logger.Fatal("Unable to load streams", zap.Error(err))
 	}
 
-	if err := Format.Print(os.Stdout, streams); err != nil {
+	if err := cfg.Format().Print(os.Stdout, streams); err != nil {
 		logger.Fatal("Unable to print the streams", zap.Error(err))
 	}
 }
@@ -62,8 +62,8 @@ func streamAddCmd() *cobra.Command {
 func streamAdd(cmd *cobra.Command, args []string) {
 	ctx := cmd.Context()
 	logger := zap.L()
-
-	db := setupDatabase(ctx, logger)
+	cfg := LoadConfig()
+	db := setupDatabase(ctx, logger, cfg)
 
 	stream := radiochatter.Stream{
 		DisplayName: args[0],
@@ -78,7 +78,7 @@ func streamAdd(cmd *cobra.Command, args []string) {
 		)
 	}
 
-	if err := Format.Print(os.Stdout, &stream); err != nil {
+	if err := cfg.Format().Print(os.Stdout, &stream); err != nil {
 		logger.Fatal(
 			"Unable to print the stream",
 			zap.Any("stream", stream),
@@ -101,8 +101,8 @@ func streamRemoveCmd() *cobra.Command {
 func streamRemove(cmd *cobra.Command, args []string) {
 	ctx := cmd.Context()
 	logger := zap.L()
-
-	db := setupDatabase(ctx, logger)
+	cfg := LoadConfig()
+	db := setupDatabase(ctx, logger, cfg)
 
 	stream := radiochatter.Stream{DisplayName: args[0]}
 
@@ -113,5 +113,11 @@ func streamRemove(cmd *cobra.Command, args []string) {
 		)
 	}
 
-	_ = Format.Print(os.Stdout, stream)
+	if err := cfg.Format().Print(os.Stdout, stream); err != nil {
+		logger.Fatal(
+			"Unable to print the removed stream",
+			zap.Any("stream", stream),
+			zap.Error(err),
+		)
+	}
 }

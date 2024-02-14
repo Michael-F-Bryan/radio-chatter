@@ -12,27 +12,26 @@ import (
 	glog "gorm.io/gorm/logger"
 )
 
-var DbDriver string
-var ConnectionString string
-var TraceSQL bool
-
 func registerDatabaseFlags(flags *pflag.FlagSet) {
-	flags.StringVar(&ConnectionString, "db", "radio-chatter.sqlite3", "The database to save to")
+	flags.String("db", "radio-chatter.sqlite3", "The database to save to")
 	_ = viper.BindPFlag("db.source", flags.Lookup("db"))
+	viper.BindEnv("db.source", "DB_SOURCE")
 
-	flags.StringVar(&DbDriver, "db-driver", "sqlite3", "Which database type to use")
+	flags.String("db-driver", "sqlite3", "Which database type to use")
 	_ = viper.BindPFlag("db.driver", flags.Lookup("db-driver"))
+	viper.BindEnv("db.driver", "DB_DRIVER")
 
-	flags.BoolVar(&TraceSQL, "db-trace", false, "Trace all SQL queries")
-	_ = viper.BindPFlag("db.trace", flags.Lookup("db-driver"))
+	flags.Bool("trace", false, "Trace all SQL queries")
+	_ = viper.BindPFlag("db.trace", flags.Lookup("trace"))
+	viper.BindEnv("db.trace", "DB_TRACE")
 }
 
-func setupDatabase(ctx context.Context, logger *zap.Logger) *gorm.DB {
+func setupDatabase(ctx context.Context, logger *zap.Logger, cfg Config) *gorm.DB {
 	if logger.Name() != "db" {
 		logger = logger.Named("db")
 	}
 
-	db, err := radiochatter.OpenDatabase(ctx, logger, DbDriver, ConnectionString)
+	db, err := radiochatter.OpenDatabase(ctx, logger, cfg.Database.Driver, cfg.Database.Source)
 	if err != nil {
 		logger.Fatal("Unable to initialize the database", zap.Error(err))
 	}
@@ -40,10 +39,10 @@ func setupDatabase(ctx context.Context, logger *zap.Logger) *gorm.DB {
 	l := &zapLogger{
 		inner:    logger,
 		sugar:    logger.Sugar(),
-		traceSQL: TraceSQL,
+		traceSQL: cfg.Database.Trace,
 		logLevel: glog.Silent,
 	}
-	if DevMode {
+	if cfg.Output.DevMode {
 		l.logLevel = glog.Info
 	}
 	db.Logger = l

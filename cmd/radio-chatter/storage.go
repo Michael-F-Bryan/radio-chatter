@@ -10,19 +10,18 @@ import (
 	"go.uber.org/zap"
 )
 
-var StorageDir string
-
 func registerStorageFlags(flags *pflag.FlagSet) {
-	flags.StringVarP(&StorageDir, "blob", "b", "", "Blob storage (user's cache dir by default)")
+	flags.StringP("blob", "b", "", "Blob storage (user's cache dir by default)")
 	_ = viper.BindPFlag("blob", flags.Lookup("blob"))
+	_ = viper.BindEnv("storage.blob", "BLOB_URL")
 }
 
-func setupStorage(logger *zap.Logger) radiochatter.BlobStorage {
+func setupStorage(logger *zap.Logger, cfg StorageConfig) radiochatter.BlobStorage {
 	if logger.Name() != "storage" {
 		logger = logger.Named("storage")
 	}
 
-	baseDir := StorageDir
+	baseDir := cfg.Blob
 
 	if baseDir == "" {
 		cacheDir, err := os.UserCacheDir()

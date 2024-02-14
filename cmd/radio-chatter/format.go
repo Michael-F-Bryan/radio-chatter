@@ -7,59 +7,44 @@ import (
 
 	"github.com/k0kubun/pp"
 	"github.com/spf13/pflag"
+	"github.com/spf13/viper"
 )
 
-var Format format = textFormat{}
-
 func registerFormatFlags(flags *pflag.FlagSet) {
-	flags.VarP(formatVar{value: &Format}, "format", "f", "The format use when printing output")
+	flags.StringP("format", "f", "text", "The format use when printing output")
+	_ = viper.BindPFlag("out.format", flags.Lookup("format"))
+	viper.BindEnv("out.format", "FORMAT")
 }
 
-type format interface {
-	Identifier() string
+type formatter interface {
 	Print(w io.Writer, value any) error
 }
 
-type formatVar struct {
-	value *format
-}
-
-func (f formatVar) String() string { return (*f.value).Identifier() }
-
-func (f formatVar) Set(value string) error {
-	switch value {
+func getFormatter(name string) (formatter, error) {
+	switch name {
 	case "text":
-		*f.value = textFormat{}
-		return nil
+		return formatFunc(textFormat), nil
 	case "json":
-		*f.value = jsonFormat{}
-		return nil
+
+		return formatFunc(jsonFormat), nil
 	default:
-		return errors.New("unknown format")
+		return nil, errors.New("unknown format")
 	}
 }
 
-func (f formatVar) Type() string { return "string" }
+type formatFunc func(w io.Writer, value any) error
 
-type jsonFormat struct{}
-
-func (t jsonFormat) Identifier() string {
-	return "json"
+func (f formatFunc) Print(w io.Writer, value any) error {
+	return f(w, value)
 }
 
-func (t jsonFormat) Print(w io.Writer, value any) error {
+func jsonFormat(w io.Writer, value any) error {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	return enc.Encode(value)
 }
 
-type textFormat struct{}
-
-func (t textFormat) Identifier() string {
-	return "text"
-}
-
-func (t textFormat) Print(w io.Writer, value any) error {
+func textFormat(w io.Writer, value any) error {
 	_, err := pp.Fprintln(w, value)
 	return err
 }

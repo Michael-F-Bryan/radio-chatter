@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -16,31 +15,34 @@ import (
 var Addr string
 
 func serveCmd() *cobra.Command {
-	var port uint16
-	var host string
-
 	cmd := &cobra.Command{
 		Use:   "serve",
 		Short: "Start the GraphQL server",
-		Run:   func(cmd *cobra.Command, args []string) { serve(cmd.Context(), fmt.Sprintf("%s:%d", host, port)) },
+		Run:   serve,
 	}
 
 	registerStorageFlags(cmd.Flags())
 	registerDatabaseFlags(cmd.Flags())
 
-	cmd.Flags().StringVarP(&host, "host", "H", "127.0.0.1", "The host to serve on")
+	cmd.Flags().StringP("host", "H", "127.0.0.1", "The host to serve on")
 	_ = viper.BindPFlag("serve.host", cmd.Flags().Lookup("host"))
-	cmd.Flags().Uint16VarP(&port, "port", "p", 8080, "The port to serve on")
+	_ = viper.BindEnv("serve.host", "HOST")
+
+	cmd.Flags().Uint16P("port", "p", 8080, "The port to serve on")
 	_ = viper.BindPFlag("serve.port", cmd.Flags().Lookup("port"))
+	_ = viper.BindEnv("serve.port", "PORT")
 
 	return cmd
 }
 
-func serve(ctx context.Context, addr string) {
+func serve(cmd *cobra.Command, args []string) {
 	logger := zap.L()
+	ctx := cmd.Context()
+	cfg := LoadConfig()
 
-	storage := setupStorage(logger)
-	db := setupDatabase(ctx, logger)
+	storage := setupStorage(logger, cfg.Storage)
+	db := setupDatabase(ctx, logger, cfg)
+	addr := cfg.Serve.Addr()
 
 	server := http.Server{
 		Addr:    addr,

@@ -23,10 +23,11 @@ func downloadCmd() *cobra.Command {
 func download(cmd *cobra.Command, args []string) {
 	ctx := cmd.Context()
 	logger := zap.L()
+	cfg := LoadConfig()
 
 	group, ctx := errgroup.WithContext(ctx)
-	storage := setupStorage(logger)
-	db := setupDatabase(ctx, logger)
+	storage := setupStorage(logger, cfg.Storage)
+	db := setupDatabase(ctx, logger, cfg)
 
 	var streams []radiochatter.Stream
 	if err := db.Find(&streams).Error; err != nil {

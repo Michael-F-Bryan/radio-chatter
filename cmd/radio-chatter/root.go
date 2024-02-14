@@ -14,8 +14,6 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-var DevMode bool
-
 func rootCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:               "radio-chatter",
@@ -25,10 +23,10 @@ func rootCmd() *cobra.Command {
 		PersistentPostRun: afterAll,
 	}
 
-	cmd.AddCommand(downloadCmd(), streamCmd(), serveCmd())
+	cmd.AddCommand(downloadCmd(), streamCmd(), serveCmd(), configCmd())
 
 	flags := cmd.PersistentFlags()
-	flags.BoolVarP(&DevMode, "dev", "d", false, "Run the application in dev mode")
+	flags.BoolP("dev", "d", false, "Run the application in dev mode")
 	_ = viper.BindPFlag("dev", flags.Lookup("dev"))
 
 	registerFormatFlags(cmd.PersistentFlags())
@@ -52,7 +50,8 @@ func beforeAll(cmd *cobra.Command, args []string) {
 
 	go func() {
 		<-ctx.Done()
-		zap.L().Debug("Beginning graceful shutdown (press ctrl-C to exit forcefully)")
+		// Cancel the signal handler so pressing ctrl-C again will kill the
+		// program.
 		cancel()
 	}()
 
@@ -66,12 +65,13 @@ func beforeAll(cmd *cobra.Command, args []string) {
 	}
 
 	_ = viper.ReadInConfig()
+	zap.L().Debug("Loaded viper", zap.Any("settings", viper.AllSettings()))
 }
 
 func initializeLogger() {
 	var cfg zap.Config
 
-	if DevMode {
+	if viper.GetBool("dev") {
 		cfg = zap.NewDevelopmentConfig()
 		cfg.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
 	} else {
