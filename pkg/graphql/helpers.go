@@ -39,7 +39,7 @@ func decodeModelId[T any](encoded string) (uint, error) {
 
 	pieces := strings.SplitN(string(s), "#", 2)
 	if len(pieces) != 2 {
-		return 0, errors.New("Invalid ID format")
+		return 0, errors.New("invalid ID format")
 	}
 
 	typeName := pieces[0]
@@ -122,6 +122,11 @@ func getByID[Model any, Generated any](db *gorm.DB, id string, mapFunc func(Mode
 	return &value, nil
 }
 
+// pollForUpdates returns a channel that will receive new records as they are
+// created.
+//
+// Under the hood, this works by periodically polling the database for anything
+// where the createdAt field is later than the previous poll time.
 func pollForUpdates[Model any, Generated any](
 	ctx context.Context,
 	db *gorm.DB,

@@ -46,7 +46,7 @@ func serve(cmd *cobra.Command, args []string) {
 
 	server := http.Server{
 		Addr:    addr,
-		Handler: handlers.Router(logger, db, storage),
+		Handler: handlers.Router(logger, db, storage, cfg.Output.DevMode),
 	}
 
 	go func() {

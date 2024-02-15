@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"net/http"
+	"net/http/pprof"
 	"strconv"
 
 	gql "github.com/99designs/gqlgen/graphql"
@@ -18,7 +19,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func Router(logger *zap.Logger, db *gorm.DB, storage radiochatter.BlobStorage) http.Handler {
+func Router(logger *zap.Logger, db *gorm.DB, storage radiochatter.BlobStorage, devMode bool) http.Handler {
 	r := mux.NewRouter()
 
 	resolver := &graphql.Resolver{
@@ -40,6 +41,16 @@ func Router(logger *zap.Logger, db *gorm.DB, storage radiochatter.BlobStorage) h
 	r.Path("/graphql").Schemes("http", "https", "ws", "wss").Handler(srv)
 	r.Path("/graphql/playground").Handler(playground.Handler("GraphQL playground", "/graphql"))
 	r.Path("/graphql/schema.graphql").Methods(http.MethodHead, http.MethodGet).HandlerFunc(graphqlSchema)
+
+	if devMode {
+		logger.Info("Registering debug endpoints")
+		sub := r.PathPrefix("/debug/pprof").Subrouter()
+		sub.HandleFunc("/cmdline", pprof.Cmdline)
+		sub.HandleFunc("/profile", pprof.Profile)
+		sub.HandleFunc("/symbol", pprof.Symbol)
+		sub.HandleFunc("/trace", pprof.Trace)
+		sub.NotFoundHandler = http.HandlerFunc(pprof.Index)
+	}
 
 	return applyMiddleware(
 		r,
