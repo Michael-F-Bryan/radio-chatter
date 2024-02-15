@@ -6,6 +6,7 @@ package graphql
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	radiochatter "github.com/Michael-F-Bryan/radio-chatter/pkg"
@@ -166,9 +167,41 @@ func (r *subscriptionResolver) Transmission(ctx context.Context) (<-chan *model.
 	return ch, nil
 }
 
+// Transcription is the resolver for the transcription field.
+func (r *subscriptionResolver) Transcription(ctx context.Context) (<-chan *model.Transcription, error) {
+	ch := pollForUpdates[radiochatter.Transcription, model.Transcription](
+		ctx,
+		r.DB,
+		r.Logger,
+		transcriptionToGraphQL,
+		func(c radiochatter.Transcription) time.Time { return c.CreatedAt },
+	)
+	return ch, nil
+}
+
 // DownloadURL is the resolver for the downloadUrl field.
 func (r *transmissionResolver) DownloadURL(ctx context.Context, obj *model.Transmission) (*string, error) {
 	return signedURL(ctx, r.Logger, r.Storage, obj.Sha256)
+}
+
+// Transcription is the resolver for the transcription field.
+func (r *transmissionResolver) Transcription(ctx context.Context, obj *model.Transmission) (*model.Transcription, error) {
+	realID, err := decodeModelId[radiochatter.Transcription](obj.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	var model radiochatter.Transcription
+	err = r.DB.First(&model, "id = ?", realID).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
+
+	value := transcriptionToGraphQL(model)
+
+	return &value, nil
 }
 
 // Chunk returns generated.ChunkResolver implementation.

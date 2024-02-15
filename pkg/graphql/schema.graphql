@@ -106,8 +106,14 @@ type Transmission implements Node {
   sha256: String!
   """Where the chunk's audio file can be downloaded from."""
   downloadUrl: String
-  """A transcription of the transmission, if available."""
-  content: String
+  transcription: Transcription
+}
+
+type Transcription implements Node {
+  id: ID!
+  createdAt: Time!
+  updatedAt: Time!
+  content: String!
 }
 
 type StreamsConnection {
@@ -143,4 +149,6 @@ type Subscription {
   chunk: Chunk!
   """Get transmissions as they are detected."""
   transmission: Transmission!
+  """Get transcriptions as transmissions are processed with speech-to-text."""
+  transcription: Transcription!
 }

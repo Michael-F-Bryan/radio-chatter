@@ -94,3 +94,5 @@ models:
     fields:
       downloadUrl:
         resolver: true
+      transcription:
+        resolver: true

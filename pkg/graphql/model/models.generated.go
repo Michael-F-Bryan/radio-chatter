@@ -6,10 +6,14 @@ import (
 	"time"
 )
 
+// Properties shared by all items stored in the database.
 type Node interface {
 	IsNode()
+	// A unique ID for this item.
 	GetID() string
+	// When the item was created.
 	GetCreatedAt() time.Time
+	// When the item was last updated.
 	GetUpdatedAt() time.Time
 }
 
@@ -27,9 +31,15 @@ type Chunk struct {
 	Transmissions *TransmissionsConnection `json:"transmissions"`
 }
 
-func (Chunk) IsNode()                      {}
-func (this Chunk) GetID() string           { return this.ID }
+func (Chunk) IsNode() {}
+
+// A unique ID for this item.
+func (this Chunk) GetID() string { return this.ID }
+
+// When the item was created.
 func (this Chunk) GetCreatedAt() time.Time { return this.CreatedAt }
+
+// When the item was last updated.
 func (this Chunk) GetUpdatedAt() time.Time { return this.UpdatedAt }
 
 type ChunksConnection struct {
@@ -40,10 +50,14 @@ type ChunksConnection struct {
 type Mutation struct {
 }
 
+// Information about a page in a paginated query.
 type PageInfo struct {
-	HasNextPage bool    `json:"hasNextPage"`
-	Length      int     `json:"length"`
-	EndCursor   *string `json:"endCursor,omitempty"`
+	// Are there any more pages?
+	HasNextPage bool `json:"hasNextPage"`
+	// How many items were in this page?
+	Length int `json:"length"`
+	// A cursor that can be passed as an "after" parameter to read the next page.
+	EndCursor *string `json:"endCursor,omitempty"`
 }
 
 type Query struct {
@@ -72,9 +86,15 @@ type Stream struct {
 	Transmissions *TransmissionsConnection `json:"transmissions"`
 }
 
-func (Stream) IsNode()                      {}
-func (this Stream) GetID() string           { return this.ID }
+func (Stream) IsNode() {}
+
+// A unique ID for this item.
+func (this Stream) GetID() string { return this.ID }
+
+// When the item was created.
 func (this Stream) GetCreatedAt() time.Time { return this.CreatedAt }
+
+// When the item was last updated.
 func (this Stream) GetUpdatedAt() time.Time { return this.UpdatedAt }
 
 type StreamsConnection struct {
@@ -84,6 +104,24 @@ type StreamsConnection struct {
 
 type Subscription struct {
 }
+
+type Transcription struct {
+	ID        string    `json:"id"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+	Content   string    `json:"content"`
+}
+
+func (Transcription) IsNode() {}
+
+// A unique ID for this item.
+func (this Transcription) GetID() string { return this.ID }
+
+// When the item was created.
+func (this Transcription) GetCreatedAt() time.Time { return this.CreatedAt }
+
+// When the item was last updated.
+func (this Transcription) GetUpdatedAt() time.Time { return this.UpdatedAt }
 
 // A radio transmission.
 type Transmission struct {
@@ -97,14 +135,19 @@ type Transmission struct {
 	// A SHA-256 checksum of the chunk's audio file.
 	Sha256 string `json:"sha256"`
 	// Where the chunk's audio file can be downloaded from.
-	DownloadURL *string `json:"downloadUrl,omitempty"`
-	// A transcription of the transmission.
-	Content *string `json:"content,omitempty"`
+	DownloadURL   *string        `json:"downloadUrl,omitempty"`
+	Transcription *Transcription `json:"transcription,omitempty"`
 }
 
-func (Transmission) IsNode()                      {}
-func (this Transmission) GetID() string           { return this.ID }
+func (Transmission) IsNode() {}
+
+// A unique ID for this item.
+func (this Transmission) GetID() string { return this.ID }
+
+// When the item was created.
 func (this Transmission) GetCreatedAt() time.Time { return this.CreatedAt }
+
+// When the item was last updated.
 func (this Transmission) GetUpdatedAt() time.Time { return this.UpdatedAt }
 
 type TransmissionsConnection struct {

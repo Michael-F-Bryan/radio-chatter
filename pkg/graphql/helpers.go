@@ -72,6 +72,17 @@ func streamToGraphQL(t radiochatter.Stream) model.Stream {
 		URL:         t.Url,
 	}
 }
+
+func chunkToGraphQL(t radiochatter.Chunk) model.Chunk {
+	return model.Chunk{
+		ID:        modelId(t),
+		CreatedAt: t.CreatedAt.UTC(),
+		UpdatedAt: t.UpdatedAt.UTC(),
+		Timestamp: t.TimeStamp,
+		Sha256:    t.Sha256,
+	}
+}
+
 func transmissionToGraphQL(t radiochatter.Transmission) model.Transmission {
 	return model.Transmission{
 		ID:        modelId(t),
@@ -80,16 +91,15 @@ func transmissionToGraphQL(t radiochatter.Transmission) model.Transmission {
 		Timestamp: t.TimeStamp,
 		Length:    t.Length.Seconds(),
 		Sha256:    t.Sha256,
-		Content:   t.Content,
 	}
 }
-func chunkToGraphQL(t radiochatter.Chunk) model.Chunk {
-	return model.Chunk{
+
+func transcriptionToGraphQL(t radiochatter.Transcription) model.Transcription {
+	return model.Transcription{
 		ID:        modelId(t),
 		CreatedAt: t.CreatedAt.UTC(),
 		UpdatedAt: t.UpdatedAt.UTC(),
-		Timestamp: t.TimeStamp,
-		Sha256:    t.Sha256,
+		Content:   t.Content,
 	}
 }
 

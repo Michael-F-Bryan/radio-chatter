@@ -43,17 +43,24 @@ type Transmission struct {
 	TimeStamp time.Time
 	// How long the transmission goes for.
 	Length time.Duration
-	// The content of the transmission, if speech-to-text has been run.
-	Content *string
 	// A hex-encoded hash of the audio clip.
 	Sha256 string
 	// The chunk this transmission came from.
-	ChunkID uint
+	ChunkID       uint
+	Transcription *Transcription `gorm:"constraint:OnDelete:CASCADE"`
+}
+
+// Transcription is the result of running speech-to-text on a Transmission.
+type Transcription struct {
+	gorm.Model
+	TransmissionID uint
+	// The content of the transmission.
+	Content string
 }
 
 // Migrate will apply any necessary migrations to the database.
 func Migrate(ctx context.Context, db *gorm.DB) error {
-	return db.WithContext(ctx).AutoMigrate(&Stream{}, &Chunk{}, &Transmission{})
+	return db.WithContext(ctx).AutoMigrate(&Stream{}, &Chunk{}, &Transmission{}, &Transcription{})
 }
 
 var databaseOpeners = map[string]func(string) gorm.Dialector{

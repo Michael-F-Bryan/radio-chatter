@@ -102,19 +102,27 @@ type ComplexityRoot struct {
 	}
 
 	Subscription struct {
-		Chunk        func(childComplexity int) int
-		Transmission func(childComplexity int) int
+		Chunk         func(childComplexity int) int
+		Transcription func(childComplexity int) int
+		Transmission  func(childComplexity int) int
+	}
+
+	Transcription struct {
+		Content   func(childComplexity int) int
+		CreatedAt func(childComplexity int) int
+		ID        func(childComplexity int) int
+		UpdatedAt func(childComplexity int) int
 	}
 
 	Transmission struct {
-		Content     func(childComplexity int) int
-		CreatedAt   func(childComplexity int) int
-		DownloadURL func(childComplexity int) int
-		ID          func(childComplexity int) int
-		Length      func(childComplexity int) int
-		Sha256      func(childComplexity int) int
-		Timestamp   func(childComplexity int) int
-		UpdatedAt   func(childComplexity int) int
+		CreatedAt     func(childComplexity int) int
+		DownloadURL   func(childComplexity int) int
+		ID            func(childComplexity int) int
+		Length        func(childComplexity int) int
+		Sha256        func(childComplexity int) int
+		Timestamp     func(childComplexity int) int
+		Transcription func(childComplexity int) int
+		UpdatedAt     func(childComplexity int) int
 	}
 
 	TransmissionsConnection struct {
@@ -144,9 +152,11 @@ type StreamResolver interface {
 type SubscriptionResolver interface {
 	Chunk(ctx context.Context) (<-chan *model.Chunk, error)
 	Transmission(ctx context.Context) (<-chan *model.Transmission, error)
+	Transcription(ctx context.Context) (<-chan *model.Transcription, error)
 }
 type TransmissionResolver interface {
 	DownloadURL(ctx context.Context, obj *model.Transmission) (*string, error)
+	Transcription(ctx context.Context, obj *model.Transmission) (*model.Transcription, error)
 }
 
 type executableSchema struct {
@@ -409,6 +419,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Subscription.Chunk(childComplexity), true
 
+	case "Subscription.transcription":
+		if e.complexity.Subscription.Transcription == nil {
+			break
+		}
+
+		return e.complexity.Subscription.Transcription(childComplexity), true
+
 	case "Subscription.transmission":
 		if e.complexity.Subscription.Transmission == nil {
 			break
@@ -416,12 +433,33 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Subscription.Transmission(childComplexity), true
 
-	case "Transmission.content":
-		if e.complexity.Transmission.Content == nil {
+	case "Transcription.content":
+		if e.complexity.Transcription.Content == nil {
 			break
 		}
 
-		return e.complexity.Transmission.Content(childComplexity), true
+		return e.complexity.Transcription.Content(childComplexity), true
+
+	case "Transcription.createdAt":
+		if e.complexity.Transcription.CreatedAt == nil {
+			break
+		}
+
+		return e.complexity.Transcription.CreatedAt(childComplexity), true
+
+	case "Transcription.id":
+		if e.complexity.Transcription.ID == nil {
+			break
+		}
+
+		return e.complexity.Transcription.ID(childComplexity), true
+
+	case "Transcription.updatedAt":
+		if e.complexity.Transcription.UpdatedAt == nil {
+			break
+		}
+
+		return e.complexity.Transcription.UpdatedAt(childComplexity), true
 
 	case "Transmission.createdAt":
 		if e.complexity.Transmission.CreatedAt == nil {
@@ -464,6 +502,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Transmission.Timestamp(childComplexity), true
+
+	case "Transmission.transcription":
+		if e.complexity.Transmission.Transcription == nil {
+			break
+		}
+
+		return e.complexity.Transmission.Transcription(childComplexity), true
 
 	case "Transmission.updatedAt":
 		if e.complexity.Transmission.UpdatedAt == nil {
@@ -621,15 +666,25 @@ scalar Time
 """Users need to be authenticated to access this item."""
 directive @authenticated on FIELD_DEFINITION
 
+"""Information about a page in a paginated query."""
 type PageInfo {
+  """Are there any more pages?"""
   hasNextPage: Boolean!
+  """How many items were in this page?"""
   length: Int!
+  """
+  A cursor that can be passed as an "after" parameter to read the next page.
+  """
   endCursor: ID
 }
 
+"""Properties shared by all items stored in the database."""
 interface Node {
+  """A unique ID for this item."""
   id: ID!
+  """When the item was created."""
   createdAt: Time!
+  """When the item was last updated."""
   updatedAt: Time!
 }
 
@@ -677,7 +732,6 @@ type Chunk implements Node {
   timestamp: Time!
   """A SHA-256 checksum of the chunk's audio file."""
   sha256: String!
-
   """Where the chunk's audio file can be downloaded from."""
   downloadUrl: String
 
@@ -708,8 +762,14 @@ type Transmission implements Node {
   sha256: String!
   """Where the chunk's audio file can be downloaded from."""
   downloadUrl: String
-  """A transcription of the transmission."""
-  content: String
+  transcription: Transcription
+}
+
+type Transcription implements Node {
+  id: ID!
+  createdAt: Time!
+  updatedAt: Time!
+  content: String!
 }
 
 type StreamsConnection {
@@ -745,6 +805,8 @@ type Subscription {
   chunk: Chunk!
   """Get transmissions as they are detected."""
   transmission: Transmission!
+  """Get transcriptions as transmissions are processed with speech-to-text."""
+  transcription: Transcription!
 }
 `, BuiltIn: false},
 }
@@ -1967,8 +2029,8 @@ func (ec *executionContext) fieldContext_Query_getTransmissionById(ctx context.C
 				return ec.fieldContext_Transmission_sha256(ctx, field)
 			case "downloadUrl":
 				return ec.fieldContext_Transmission_downloadUrl(ctx, field)
-			case "content":
-				return ec.fieldContext_Transmission_content(ctx, field)
+			case "transcription":
+				return ec.fieldContext_Transmission_transcription(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Transmission", field.Name)
 		},
@@ -2708,10 +2770,254 @@ func (ec *executionContext) fieldContext_Subscription_transmission(ctx context.C
 				return ec.fieldContext_Transmission_sha256(ctx, field)
 			case "downloadUrl":
 				return ec.fieldContext_Transmission_downloadUrl(ctx, field)
-			case "content":
-				return ec.fieldContext_Transmission_content(ctx, field)
+			case "transcription":
+				return ec.fieldContext_Transmission_transcription(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Transmission", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_transcription(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	fc, err := ec.fieldContext_Subscription_transcription(ctx, field)
+	if err != nil {
+		return nil
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().Transcription(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func(ctx context.Context) graphql.Marshaler {
+		select {
+		case res, ok := <-resTmp.(<-chan *model.Transcription):
+			if !ok {
+				return nil
+			}
+			return graphql.WriterFunc(func(w io.Writer) {
+				w.Write([]byte{'{'})
+				graphql.MarshalString(field.Alias).MarshalGQL(w)
+				w.Write([]byte{':'})
+				ec.marshalNTranscription2ᚖgithubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐTranscription(ctx, field.Selections, res).MarshalGQL(w)
+				w.Write([]byte{'}'})
+			})
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (ec *executionContext) fieldContext_Subscription_transcription(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Transcription_id(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Transcription_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_Transcription_updatedAt(ctx, field)
+			case "content":
+				return ec.fieldContext_Transcription_content(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Transcription", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Transcription_id(ctx context.Context, field graphql.CollectedField, obj *model.Transcription) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Transcription_id(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNID2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Transcription_id(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Transcription",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Transcription_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.Transcription) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Transcription_createdAt(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.CreatedAt, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(time.Time)
+	fc.Result = res
+	return ec.marshalNTime2timeᚐTime(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Transcription_createdAt(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Transcription",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Transcription_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.Transcription) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Transcription_updatedAt(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.UpdatedAt, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(time.Time)
+	fc.Result = res
+	return ec.marshalNTime2timeᚐTime(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Transcription_updatedAt(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Transcription",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Transcription_content(ctx context.Context, field graphql.CollectedField, obj *model.Transcription) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Transcription_content(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Content, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Transcription_content(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Transcription",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -3022,8 +3328,8 @@ func (ec *executionContext) fieldContext_Transmission_downloadUrl(ctx context.Co
 	return fc, nil
 }
 
-func (ec *executionContext) _Transmission_content(ctx context.Context, field graphql.CollectedField, obj *model.Transmission) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Transmission_content(ctx, field)
+func (ec *executionContext) _Transmission_transcription(ctx context.Context, field graphql.CollectedField, obj *model.Transmission) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Transmission_transcription(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -3036,7 +3342,7 @@ func (ec *executionContext) _Transmission_content(ctx context.Context, field gra
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.Content, nil
+		return ec.resolvers.Transmission().Transcription(rctx, obj)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -3045,19 +3351,29 @@ func (ec *executionContext) _Transmission_content(ctx context.Context, field gra
 	if resTmp == nil {
 		return graphql.Null
 	}
-	res := resTmp.(*string)
+	res := resTmp.(*model.Transcription)
 	fc.Result = res
-	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+	return ec.marshalOTranscription2ᚖgithubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐTranscription(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Transmission_content(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Transmission_transcription(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Transmission",
 		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
+		IsMethod:   true,
+		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Transcription_id(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Transcription_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_Transcription_updatedAt(ctx, field)
+			case "content":
+				return ec.fieldContext_Transcription_content(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Transcription", field.Name)
 		},
 	}
 	return fc, nil
@@ -3113,8 +3429,8 @@ func (ec *executionContext) fieldContext_TransmissionsConnection_edges(ctx conte
 				return ec.fieldContext_Transmission_sha256(ctx, field)
 			case "downloadUrl":
 				return ec.fieldContext_Transmission_downloadUrl(ctx, field)
-			case "content":
-				return ec.fieldContext_Transmission_content(ctx, field)
+			case "transcription":
+				return ec.fieldContext_Transmission_transcription(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Transmission", field.Name)
 		},
@@ -5010,6 +5326,13 @@ func (ec *executionContext) _Node(ctx context.Context, sel ast.SelectionSet, obj
 			return graphql.Null
 		}
 		return ec._Transmission(ctx, sel, obj)
+	case model.Transcription:
+		return ec._Transcription(ctx, sel, &obj)
+	case *model.Transcription:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._Transcription(ctx, sel, obj)
 	default:
 		panic(fmt.Errorf("unexpected type %T", obj))
 	}
@@ -5608,9 +5931,65 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 		return ec._Subscription_chunk(ctx, fields[0])
 	case "transmission":
 		return ec._Subscription_transmission(ctx, fields[0])
+	case "transcription":
+		return ec._Subscription_transcription(ctx, fields[0])
 	default:
 		panic("unknown field " + strconv.Quote(fields[0].Name))
 	}
+}
+
+var transcriptionImplementors = []string{"Transcription", "Node"}
+
+func (ec *executionContext) _Transcription(ctx context.Context, sel ast.SelectionSet, obj *model.Transcription) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, transcriptionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Transcription")
+		case "id":
+			out.Values[i] = ec._Transcription_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._Transcription_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._Transcription_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "content":
+			out.Values[i] = ec._Transcription_content(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
 }
 
 var transmissionImplementors = []string{"Transmission", "Node"}
@@ -5687,8 +6066,39 @@ func (ec *executionContext) _Transmission(ctx context.Context, sel ast.Selection
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-		case "content":
-			out.Values[i] = ec._Transmission_content(ctx, field, obj)
+		case "transcription":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Transmission_transcription(ctx, field, obj)
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -6240,6 +6650,20 @@ func (ec *executionContext) marshalNTime2timeᚐTime(ctx context.Context, sel as
 	return res
 }
 
+func (ec *executionContext) marshalNTranscription2githubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐTranscription(ctx context.Context, sel ast.SelectionSet, v model.Transcription) graphql.Marshaler {
+	return ec._Transcription(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNTranscription2ᚖgithubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐTranscription(ctx context.Context, sel ast.SelectionSet, v *model.Transcription) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._Transcription(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNTransmission2githubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐTransmission(ctx context.Context, sel ast.SelectionSet, v model.Transmission) graphql.Marshaler {
 	return ec._Transmission(ctx, sel, &v)
 }
@@ -6685,6 +7109,13 @@ func (ec *executionContext) marshalOString2ᚖstring(ctx context.Context, sel as
 	}
 	res := graphql.MarshalString(*v)
 	return res
+}
+
+func (ec *executionContext) marshalOTranscription2ᚖgithubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐTranscription(ctx context.Context, sel ast.SelectionSet, v *model.Transcription) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._Transcription(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOTransmission2ᚕgithubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐTransmissionᚄ(ctx context.Context, sel ast.SelectionSet, v []model.Transmission) graphql.Marshaler {
