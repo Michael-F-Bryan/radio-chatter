@@ -27,7 +27,7 @@ func rootCmd() *cobra.Command {
 
 	flags := cmd.PersistentFlags()
 	flags.BoolP("dev", "d", false, "Run the application in dev mode")
-	_ = viper.BindPFlag("dev", flags.Lookup("dev"))
+	_ = viper.BindPFlag("out.dev", flags.Lookup("dev"))
 
 	registerFormatFlags(cmd.PersistentFlags())
 
@@ -35,8 +35,6 @@ func rootCmd() *cobra.Command {
 }
 
 func beforeAll(cmd *cobra.Command, args []string) {
-	initializeLogger()
-
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 
 	viper.SetConfigName("radio-chatter")
@@ -53,9 +51,12 @@ func beforeAll(cmd *cobra.Command, args []string) {
 	var cfg Config
 
 	if err := viper.Unmarshal(&cfg); err != nil {
-		zap.L().Fatal("Unable to load the config", zap.Error(err))
+		log.Fatalf("Unable to load the config: %e", err)
 	}
 	ctx = context.WithValue(ctx, configKey{}, cfg)
+
+	initializeLogger(cfg.Output)
+
 	zap.L().Debug("Loaded config", zap.Any("settings", cfg))
 
 	post := cmd.PersistentPostRun
@@ -76,10 +77,10 @@ func beforeAll(cmd *cobra.Command, args []string) {
 	cmd.SetContext(ctx)
 }
 
-func initializeLogger() {
+func initializeLogger(out OutputConfig) {
 	var cfg zap.Config
 
-	if viper.GetBool("dev") {
+	if out.DevMode {
 		cfg = zap.NewDevelopmentConfig()
 		cfg.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
 	} else {
@@ -92,6 +93,7 @@ func initializeLogger() {
 	}
 
 	zap.ReplaceGlobals(logger)
+	zap.RedirectStdLog(logger)
 }
 
 func afterAll(cmd *cobra.Command, args []string) {
