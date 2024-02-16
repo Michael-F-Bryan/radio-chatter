@@ -1,5 +1,7 @@
 # Radio Chatter
 
+[![Continuous Integration](https://github.com/Michael-F-Bryan/radio-chatter/actions/workflows/ci.yml/badge.svg)](https://github.com/Michael-F-Bryan/radio-chatter/actions/workflows/ci.yml)
+
 Radio Chatter is a service created by the [Communications Support Unit][csu] for
 monitoring DFES radio traffic and providing better situational awareness during
 emergencies.
