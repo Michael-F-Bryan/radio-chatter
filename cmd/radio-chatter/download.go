@@ -39,6 +39,11 @@ func download(cmd *cobra.Command, args []string) {
 		defer cleanup()
 	}
 
+	group.Go(func() error {
+		whisper := radiochatter.NewWhisperTranscriber(logger.Named("whisper"))
+		return radiochatter.Transcribe(ctx, logger.Named("transcribe"), db, whisper, storage)
+	})
+
 	defer logger.Info("Exit")
 
 	if err := group.Wait(); err != nil {

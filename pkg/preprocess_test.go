@@ -55,6 +55,7 @@ func TestRealRecording(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
+	requires(t, ffmpegCommand)
 
 	logger := zaptest.NewLogger(t)
 	ctx := testContext(t)

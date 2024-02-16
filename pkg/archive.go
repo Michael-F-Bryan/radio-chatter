@@ -3,6 +3,7 @@ package radiochatter
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"os"
@@ -176,7 +177,7 @@ func (a ArchiveOperation) Execute(ctx context.Context, state ArchiveState) error
 	group, ctx := errgroup.WithContext(ctx)
 
 	for _, piece := range a.Pieces {
-		group.Go(splitAudio(ctx, state, a.Path, piece, chunk))
+		group.Go(splitAudioJob(ctx, state, a.Path, piece, chunk))
 	}
 
 	if err := group.Wait(); err != nil {
@@ -191,102 +192,111 @@ func (a ArchiveOperation) Execute(ctx context.Context, state ArchiveState) error
 	return nil
 }
 
-func splitAudio(ctx context.Context, state ArchiveState, path string, span audioSpan, chunk Chunk) func() error {
+func splitAudioJob(ctx context.Context, state ArchiveState, path string, span audioSpan, chunk Chunk) func() error {
 	return func() error {
-		tmp := filepath.Join(os.TempDir(), fmt.Sprintf("split-%d.mp3", rand.Int63()))
-		defer func() {
-			if err := os.Remove(tmp); err != nil {
-				state.Logger.Warn(
-					"Unable to delete the temporary file",
-					zap.String("path", tmp),
-					zap.Error(err),
-				)
-			}
-		}()
-
-		buffer := 100 * time.Millisecond
-		segmentStart := span.Start
-		duration := span.Duration()
-
-		if segmentStart > buffer {
-			// Add a bit of space at the start and end of the clip so it doesn't
-			// sound like it's been cut off.
-			segmentStart -= buffer
-			duration += 2 * buffer
-		}
-
-		segmentStart = segmentStart.Round(time.Millisecond)
-		duration = duration.Round(time.Millisecond)
-
-		args := []string{
-			// Inputs
-			"-i", path,
-			// The segment start
-			"-ss", fmt.Sprint(segmentStart.Seconds()),
-			// Time duration
-			"-t", fmt.Sprint(duration.Seconds()),
-			// Reuse the same codec
-			"-acodec", "copy",
-			// Clean up the output so it's easier to troubleshoot
-			"-hide_banner", "-nostdin", "-nostats",
-			// We want to write output to our temporary file
-			tmp,
-		}
-
-		cmd := exec.CommandContext(ctx, defaultCommand, args...)
-
-		stdout := &bytes.Buffer{}
-		cmd.Stdout = stdout
-		stderr := &bytes.Buffer{}
-		cmd.Stderr = stderr
-
-		state.Logger.Debug("splitting with ffmpeg", zap.Stringer("cmd", cmd))
-
-		err := cmd.Run()
-
-		if err != nil {
-			if exitError, ok := err.(*exec.ExitError); ok {
-				state.Logger.Warn(
-					"ffmpeg errored out",
-					zap.Stringer("cmd", cmd),
-					zap.Int("code", exitError.ExitCode()),
-					zap.ByteString("stderr", stderr.Bytes()),
-					zap.ByteString("stdout", stdout.Bytes()),
-				)
-			}
-
-			return fmt.Errorf("unable to extract %s from %q: %w", span, path, err)
-		}
-
-		buf, err := os.ReadFile(tmp)
-		if err != nil {
-			return fmt.Errorf("unable to read the split from %q: %w", tmp, err)
-		}
-
-		key, err := state.Storage.Store(ctx, buf)
-		if err != nil {
-			return fmt.Errorf("unable to store %s from %q: %w", span, path, err)
-		}
-
-		transmission := Transmission{
-			TimeStamp: chunk.TimeStamp.Add(span.Start),
-			Length:    span.Duration(),
-			Sha256:    key.String(),
-			ChunkID:   chunk.ID,
-		}
-
-		if err := state.DB.Save(&transmission).Error; err != nil {
-			return fmt.Errorf("unable to save transmission: %w", err)
-		}
-
-		state.Logger.Info(
-			"Saved transmission",
-			zap.Any("transmission", transmission),
-			zap.Int("bytes", len(buf)),
-		)
-
-		return nil
+		_, err := splitAudio(ctx, state, path, span, chunk)
+		return err
 	}
+}
+
+func splitAudio(ctx context.Context, state ArchiveState, path string, span audioSpan, chunk Chunk) (Transmission, error) {
+	tmp := filepath.Join(os.TempDir(), fmt.Sprintf("split-%d.mp3", rand.Int63()))
+	defer func() {
+		if err := os.Remove(tmp); err != nil {
+			state.Logger.Warn(
+				"Unable to delete the temporary file",
+				zap.String("path", tmp),
+				zap.Error(err),
+			)
+		}
+	}()
+
+	buffer := 100 * time.Millisecond
+	segmentStart := span.Start
+	duration := span.Duration()
+
+	if segmentStart > buffer {
+		// Add a bit of space at the start and end of the clip so it doesn't
+		// sound like it's been cut off.
+		segmentStart -= buffer
+		duration += 2 * buffer
+	}
+
+	segmentStart = segmentStart.Round(time.Millisecond)
+	duration = duration.Round(time.Millisecond)
+
+	args := []string{
+		// Inputs
+		"-i", path,
+		// The segment start
+		"-ss", fmt.Sprint(segmentStart.Seconds()),
+		// Time duration
+		"-t", fmt.Sprint(duration.Seconds()),
+		// Reuse the same codec
+		"-acodec", "copy",
+		// Clean up the output so it's easier to troubleshoot
+		"-hide_banner", "-nostdin", "-nostats",
+		// We want to write output to our temporary file
+		tmp,
+	}
+
+	cmd := exec.CommandContext(ctx, ffmpegCommand, args...)
+
+	stdout := &bytes.Buffer{}
+	cmd.Stdout = stdout
+	stderr := &bytes.Buffer{}
+	cmd.Stderr = stderr
+
+	state.Logger.Debug("splitting with ffmpeg", zap.Stringer("cmd", cmd))
+
+	err := cmd.Run()
+
+	if commandWasCancelled(ctx, err) {
+		return Transmission{}, context.Canceled
+	} else if err != nil {
+		var exitError *exec.ExitError
+
+		if errors.As(err, &exitError) {
+			state.Logger.Warn(
+				"ffmpeg errored out",
+				zap.Stringer("cmd", cmd),
+				zap.Int("code", exitError.ExitCode()),
+				zap.ByteString("stderr", stderr.Bytes()),
+				zap.ByteString("stdout", stdout.Bytes()),
+			)
+		}
+
+		return Transmission{}, fmt.Errorf("unable to extract %s from %q: %w", span, path, err)
+	}
+
+	buf, err := os.ReadFile(tmp)
+	if err != nil {
+		return Transmission{}, fmt.Errorf("unable to read the split from %q: %w", tmp, err)
+	}
+
+	key, err := state.Storage.Store(ctx, buf)
+	if err != nil {
+		return Transmission{}, fmt.Errorf("unable to store %s from %q: %w", span, path, err)
+	}
+
+	transmission := Transmission{
+		TimeStamp: chunk.TimeStamp.Add(span.Start),
+		Length:    span.Duration(),
+		Sha256:    key.String(),
+		ChunkID:   chunk.ID,
+	}
+
+	if err := state.DB.Save(&transmission).Error; err != nil {
+		return Transmission{}, fmt.Errorf("unable to save transmission: %w", err)
+	}
+
+	state.Logger.Info(
+		"Saved transmission",
+		zap.Any("transmission", transmission),
+		zap.Int("bytes", len(buf)),
+	)
+
+	return transmission, nil
 }
 
 type audioSpan struct {

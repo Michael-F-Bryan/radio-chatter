@@ -19,6 +19,7 @@ func TestArchiveRealRecording(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
+	requires(t, ffmpegCommand)
 
 	logger := zaptest.NewLogger(t)
 	ctx := testContext(t)
@@ -312,6 +313,7 @@ func TestSplitAndArchiveRecording(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
+	requires(t, ffmpegCommand)
 
 	logger := zaptest.NewLogger(t)
 	ctx := testContext(t)
