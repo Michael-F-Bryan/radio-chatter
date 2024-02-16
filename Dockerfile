@@ -23,7 +23,6 @@ FROM python:3.12-slim AS transcribe
 # Set up Whisper
 RUN apt-get update && apt-get install -y git ffmpeg && rm -rf /var/lib/apt/lists/*
 RUN pip3 install "git+https://github.com/openai/whisper.git"
-RUN whisper --version
 RUN python3 -c "import whisper; whisper.load_model('large-v2', device='cpu')"
 
 COPY --from=build /app/out/radio-chatter /bin/radio-chatter

@@ -1,5 +1,14 @@
 version: '3'
 
+x-develop: &develop
+  watch:
+    - path: cmd
+      action: rebuild
+    - path: pkg
+      action: rebuild
+    - path: Dockerfile
+      action: rebuild
+
 services:
   db:
     image: postgres:16.2
@@ -29,22 +38,13 @@ services:
       start_period: 30s
     command: ["/bin/radio-chatter", "serve", "--dev"]
     restart: unless-stopped
-    environment:
-      - DB_DRIVER=postgres
-      - DB_SOURCE=host=db user=postgres password=password sslmode=disable
-      - HOST=0.0.0.0
+    env_file:
+      - .env.local
     ports:
       - "127.0.0.1:8080:8080"
     depends_on:
       - db
-    develop:
-      watch:
-        - path: cmd
-          action: rebuild
-        - path: pkg
-          action: rebuild
-        - path: Dockerfile
-          action: rebuild
+    develop: *develop
 
   downloader:
     build:
@@ -52,20 +52,23 @@ services:
       dockerfile: ./Dockerfile
     command: ["/bin/radio-chatter", "download", "--dev"]
     restart: unless-stopped
-    environment:
-      - DB_DRIVER=postgres
-      - DB_SOURCE=host=db user=postgres password=password sslmode=disable
+    env_file:
+      - .env.local
     depends_on:
       - db
       - backend
-    develop:
-      watch:
-        - path: cmd
-          action: rebuild
-        - path: pkg
-          action: rebuild
-        - path: Dockerfile
-          action: rebuild
+    develop: *develop
 
-volumes:
-  dbdata:
+  transcribe:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+      target: transcribe
+    command: ["/bin/radio-chatter", "transcribe", "--dev"]
+    restart: unless-stopped
+    env_file:
+      - .env.local
+    depends_on:
+      - db
+      - backend
+    develop: *develop

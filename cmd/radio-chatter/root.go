@@ -23,7 +23,7 @@ func rootCmd() *cobra.Command {
 		PersistentPostRun: afterAll,
 	}
 
-	cmd.AddCommand(downloadCmd(), streamCmd(), serveCmd(), configCmd())
+	cmd.AddCommand(downloadCmd(), streamCmd(), serveCmd(), configCmd(), transcribeCmd())
 
 	flags := cmd.PersistentFlags()
 	flags.BoolP("dev", "d", false, "Run the application in dev mode")
