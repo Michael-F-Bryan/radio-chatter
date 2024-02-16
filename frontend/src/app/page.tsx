@@ -1,95 +1,69 @@
-import Image from "next/image";
+"use client";
+import { useSubscription } from "@apollo/client";
+
 import styles from "./page.module.css";
+import { gql } from "../__generated__/gql";
+import { useState } from "react";
+
+const TRANSMISSION_SUBSCRIPTION = gql(/* GraphQL */ `
+  subscription transmissions {
+    transmission {
+      id
+      timestamp
+      downloadUrl
+    }
+  }
+`);
+type Record = {
+  id: string,
+  timestamp: Date,
+  downloadUrl?: string,
+}
 
 export default function Home() {
+  const [transmissions, setTransmissions] = useState<Record[]>([]);
+
+  const { loading, data, error, variables } = useSubscription(
+    TRANSMISSION_SUBSCRIPTION,
+    {
+      onData: (opts) => {
+        const t = opts.data.data?.transmission;
+        if (t) {
+          const value: Record = {
+            id: t.id, timestamp: t.timestamp, downloadUrl: t.downloadUrl || undefined,
+          }
+          setTransmissions([...transmissions, value]);
+        }
+
+      }
+    }
+  );
+
+  console.log(loading, data, error, variables);
+
+  const rows = transmissions.map(t => (
+    <tr key={t.id}>
+      <td>{t.id}</td>
+      <td>{t.timestamp.toString()}</td>
+      <td><a href={t.downloadUrl} target="_blank">Link</a></td>
+    </tr>
+  ));
+
   return (
     <main className={styles.main}>
-      <div className={styles.description}>
-        <p>
-          Get started by editing&nbsp;
-          <code className={styles.code}>src/app/page.tsx</code>
-        </p>
-        <div>
-          <a
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{" "}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className={styles.vercelLogo}
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
-        </div>
-      </div>
-
-      <div className={styles.center}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
-      </div>
-
-      <div className={styles.grid}>
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Docs <span>-&gt;</span>
-          </h2>
-          <p>Find in-depth information about Next.js features and API.</p>
-        </a>
-
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Learn <span>-&gt;</span>
-          </h2>
-          <p>Learn about Next.js in an interactive course with&nbsp;quizzes!</p>
-        </a>
-
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Templates <span>-&gt;</span>
-          </h2>
-          <p>Explore starter templates for Next.js.</p>
-        </a>
-
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Deploy <span>-&gt;</span>
-          </h2>
-          <p>
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
-      </div>
+      <h1>Main page!</h1>
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Timestamp</th>
+            <th>Link</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows}
+        </tbody>
+      </table>
     </main>
   );
 }

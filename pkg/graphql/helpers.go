@@ -151,7 +151,7 @@ func pollForUpdates[Model any, Generated any](
 			select {
 			case <-timer.C:
 				var items []Model
-				err := db.Where("createdAt > ?", lastCheck).Find(&items).Error
+				err := db.Where("created_at > ?", lastCheck).Find(&items).Error
 				if err != nil {
 					logger.Error("Unable to fetch recently created items", zap.Error(err))
 					return

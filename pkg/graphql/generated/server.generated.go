@@ -795,9 +795,9 @@ input RegisterStreamVariables {
 
 type Mutation {
   """Register a new stream."""
-  registerStream(input: RegisterStreamVariables!): Stream! @authenticated()
+  registerStream(input: RegisterStreamVariables!): Stream! @authenticated
   """Remove a stream."""
-  removeStream(id: ID!): Stream! @authenticated()
+  removeStream(id: ID!): Stream! @authenticated
 }
 
 type Subscription {

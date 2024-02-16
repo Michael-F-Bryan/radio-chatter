@@ -1,0 +1,14 @@
+*
+
+# File extensions we want to check
+!*.ts
+!*.tsx
+!*.css
+!*.mjs
+!*.json
+
+# Check subdirectories too
+!*/
+
+# But we want to ignore generated code
+src/__generated__/

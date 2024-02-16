@@ -64,6 +64,7 @@ func loggingMiddleware(logger *zap.Logger) mux.MiddlewareFunc {
 				zap.String("remote-addr", r.RemoteAddr),
 				zap.String("user-agent", r.UserAgent()),
 			)
+			subLogger.Debug("Response Headers", zap.Any("headers", writer.Header()))
 		})
 	}
 }

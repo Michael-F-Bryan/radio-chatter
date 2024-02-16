@@ -38,7 +38,7 @@ func Router(logger *zap.Logger, db *gorm.DB, storage radiochatter.BlobStorage, d
 	srv.AroundResponses(logGraphQLErrors)
 
 	r.Path("/healthz").Methods(http.MethodHead, http.MethodGet).Handler(Healthz(db, logger))
-	r.Path("/graphql").Schemes("http", "https", "ws", "wss").Handler(srv)
+	r.Path("/graphql").Schemes("http", "https", "ws", "wss").Methods(http.MethodHead, http.MethodGet, http.MethodPost, http.MethodOptions).Handler(srv)
 	r.Path("/graphql/playground").Handler(playground.Handler("GraphQL playground", "/graphql"))
 	r.Path("/graphql/schema.graphql").Methods(http.MethodHead, http.MethodGet).HandlerFunc(graphqlSchema)
 
@@ -59,10 +59,12 @@ func Router(logger *zap.Logger, db *gorm.DB, storage radiochatter.BlobStorage, d
 		requestIDMiddleware,
 		loggingMiddleware(logger),
 		handlers.CORS(
-			handlers.AllowedMethods([]string{http.MethodHead, http.MethodGet, http.MethodPost}),
 			// Note: It's fine to allow all origins because that lets users access
 			// the backend from their own apps
 			handlers.AllowedOrigins([]string{"*"}),
+			// Note: Chrome likes to send some extra headers that need to be
+			// explicitly allowed
+			handlers.AllowedHeaders([]string{"Content-Type", "Origin"}),
 		),
 	)
 }
@@ -133,7 +135,7 @@ func logGraphQLErrors(ctx context.Context, next gql.ResponseHandler) *gql.Respon
 
 	response := next(ctx)
 
-	if len(response.Errors) > 0 {
+	if response != nil && len(response.Errors) > 0 {
 		logger.Warn(
 			"Resolve error",
 			zap.Stringer("path", response.Path),
