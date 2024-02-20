@@ -207,8 +207,8 @@ func (w WhisperTranscriber) transcribe(ctx context.Context, url *url.URL) (strin
 	}()
 
 	args := []string{
-		"--model=" + w.model, "--language=en", "--output_dir=" + tmp,
-		"--output_format=all", f.Name(),
+		"--model", w.model, "--language", "en", "--output_dir", tmp,
+		"--output_format", "all", f.Name(),
 	}
 
 	cmd := exec.CommandContext(ctx, whisperCommand, args...)

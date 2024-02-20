@@ -48,7 +48,7 @@ func TestTranscribeUsingWhisper(t *testing.T) {
 	span := audioSpan{Start: 18323800000, End: 22560400000}
 	transmission, err := splitAudio(ctx, state, recording, span, Chunk{})
 	assert.NoError(t, err)
-	w := WhisperTranscriber{logger: logger}
+	w := NewWhisperTranscriber(logger)
 	key, err := ParseBlobKey(transmission.Sha256)
 	assert.NoError(t, err)
 	recordingURL, err := storage.Link(ctx, key)
@@ -57,7 +57,7 @@ func TestTranscribeUsingWhisper(t *testing.T) {
 	transcriptions, err := w.SpeechToText(ctx, []*url.URL{recordingURL})
 
 	assert.NoError(t, err)
-	assert.Equal(t, []string{"Okay, I'll see you in a minute, I'll drive on.\n"}, transcriptions)
+	assert.Equal(t, []string{"Okay, out to Verock, over.\n"}, transcriptions)
 }
 
 func requires(t *testing.T, programs ...string) {
