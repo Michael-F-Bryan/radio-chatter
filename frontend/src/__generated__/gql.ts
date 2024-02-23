@@ -13,7 +13,8 @@ import { TypedDocumentNode as DocumentNode } from '@graphql-typed-document-node/
  * Therefore it is highly recommended to use the babel or swc plugin for production.
  */
 const documents = {
-    "\n  subscription transmissions {\n    transmission {\n      id\n      timestamp\n      downloadUrl\n    }\n  }\n": types.TransmissionsDocument,
+    "\n  subscription transmissions {\n    transmission {\n      id\n      timestamp\n      downloadUrl\n      transcription {\n        content\n      }\n    }\n  }\n": types.TransmissionsDocument,
+    "\n  query GetStreams($after: ID) {\n      getStreams(after: $after) {\n        edges {\n          id\n          createdAt\n          displayName\n          url\n        }\n      }\n    }\n": types.GetStreamsDocument,
 };
 
 /**
@@ -33,7 +34,11 @@ export function gql(source: string): unknown;
 /**
  * The gql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function gql(source: "\n  subscription transmissions {\n    transmission {\n      id\n      timestamp\n      downloadUrl\n    }\n  }\n"): (typeof documents)["\n  subscription transmissions {\n    transmission {\n      id\n      timestamp\n      downloadUrl\n    }\n  }\n"];
+export function gql(source: "\n  subscription transmissions {\n    transmission {\n      id\n      timestamp\n      downloadUrl\n      transcription {\n        content\n      }\n    }\n  }\n"): (typeof documents)["\n  subscription transmissions {\n    transmission {\n      id\n      timestamp\n      downloadUrl\n      transcription {\n        content\n      }\n    }\n  }\n"];
+/**
+ * The gql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function gql(source: "\n  query GetStreams($after: ID) {\n      getStreams(after: $after) {\n        edges {\n          id\n          createdAt\n          displayName\n          url\n        }\n      }\n    }\n"): (typeof documents)["\n  query GetStreams($after: ID) {\n      getStreams(after: $after) {\n        edges {\n          id\n          createdAt\n          displayName\n          url\n        }\n      }\n    }\n"];
 
 export function gql(source: string) {
   return (documents as any)[source] ?? {};
