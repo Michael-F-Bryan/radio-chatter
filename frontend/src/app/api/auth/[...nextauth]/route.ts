@@ -1,14 +1,14 @@
 import NextAuth, { User } from "next-auth";
-import CredentialsProvider from "next-auth/providers/credentials"
+import CredentialsProvider from "next-auth/providers/credentials";
 
 const handler = NextAuth({
   providers: [
     // TODO: swap this out for a proper auth provider
     CredentialsProvider({
-      name: 'Credentials',
+      name: "Credentials",
       credentials: {
         username: { label: "Username", type: "text", placeholder: "jsmith" },
-        password: { label: "Password", type: "password" }
+        password: { label: "Password", type: "password" },
       },
       authorize: async (credentials, req): Promise<User | null> => {
         const username = credentials?.username;
@@ -18,8 +18,8 @@ const handler = NextAuth({
         } else {
           return null;
         }
-      }
-    })
+      },
+    }),
   ],
 });
 

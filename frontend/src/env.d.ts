@@ -7,5 +7,6 @@ declare namespace NodeJS {
     GITHUB_ID: string;
     GITHUB_SECRET: string;
     NEXTAUTH_URL: string;
+    NEXTAUTH_SECRET: string;
   }
 }

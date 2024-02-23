@@ -1,18 +1,18 @@
-"use client"
+"use client";
 
-import AppBar from '@mui/material/AppBar';
-import Box from '@mui/material/Box';
-import Toolbar from '@mui/material/Toolbar';
-import Typography from '@mui/material/Typography';
-import IconButton from '@mui/material/IconButton';
-import AccountCircle from '@mui/icons-material/AccountCircle';
-import LyricsIcon from '@mui/icons-material/Lyrics';
-import { signIn, signOut, useSession } from 'next-auth/react';
-import Menu from '@mui/material/Menu';
-import MenuItem from '@mui/material/MenuItem';
-import { useState } from 'react';
-import Button from '@mui/material/Button';
-import { Link } from '@mui/material';
+import AppBar from "@mui/material/AppBar";
+import Box from "@mui/material/Box";
+import Toolbar from "@mui/material/Toolbar";
+import Typography from "@mui/material/Typography";
+import IconButton from "@mui/material/IconButton";
+import AccountCircle from "@mui/icons-material/AccountCircle";
+import LyricsIcon from "@mui/icons-material/Lyrics";
+import { signIn, signOut, useSession } from "next-auth/react";
+import Menu from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
+import { useState } from "react";
+import Button from "@mui/material/Button";
+import { Link } from "@mui/material";
 import NextLink from "next/link";
 
 export default function Header() {
@@ -20,7 +20,11 @@ export default function Header() {
     <Box sx={{ flexGrow: 1 }}>
       <AppBar position="static">
         <Toolbar>
-          <Link href='/' component={NextLink} sx={{ color: "#fff", flexGrow: 1 }}>
+          <Link
+            href="/"
+            component={NextLink}
+            sx={{ color: "#fff", flexGrow: 1 }}
+          >
             <IconButton
               size="large"
               edge="start"
@@ -29,9 +33,7 @@ export default function Header() {
               sx={{ mr: 2 }}
             >
               <LyricsIcon />
-              <Typography variant="h6">
-                Radio Chatter
-              </Typography>
+              <Typography variant="h6">Radio Chatter</Typography>
             </IconButton>
           </Link>
 
@@ -68,21 +70,19 @@ function CurrentUserBadge() {
             color="inherit"
           >
             <AccountCircle />
-            <Typography>
-              {session.data.user?.name}
-            </Typography>
+            <Typography>{session.data.user?.name}</Typography>
           </IconButton>
           <Menu
             id="menu-appbar"
             anchorEl={anchorEl}
             anchorOrigin={{
-              vertical: 'top',
-              horizontal: 'right',
+              vertical: "top",
+              horizontal: "right",
             }}
             keepMounted
             transformOrigin={{
-              vertical: 'top',
-              horizontal: 'right',
+              vertical: "top",
+              horizontal: "right",
             }}
             open={Boolean(anchorEl)}
             onClose={handleClose}
@@ -90,7 +90,7 @@ function CurrentUserBadge() {
             <MenuItem onClick={() => signOut()}>Log Out</MenuItem>
           </Menu>
         </div>
-      )
+      );
 
     case "loading":
     case "unauthenticated":
@@ -100,7 +100,6 @@ function CurrentUserBadge() {
             Login
           </Button>
         </div>
-      )
-
+      );
   }
 }

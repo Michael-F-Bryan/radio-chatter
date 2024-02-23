@@ -1,83 +1,58 @@
 "use client";
-import { useSubscription } from "@apollo/client";
+import { useQuery } from "@apollo/client";
+import { CircularProgress, Container, Typography } from "@mui/material";
+import { notFound } from "next/navigation";
 
 import { gql } from "@/__generated__";
-import { useState } from "react";
-import { Container, Table, TableBody, TableCell, TableHead, TableRow } from "@mui/material";
+import StreamTable from "@/components/StreamTable";
+import ErrorAlert from "@/components/ErrorAlert";
 
-const TRANSMISSION_SUBSCRIPTION = gql(/* GraphQL */ `
-  subscription transmissions {
-    transmission {
-      id
-      timestamp
-      downloadUrl
-      transcription {
-        content
-      }
+const STREAM_QUERY = gql(/* GraphQL */ `
+  query stream($id: ID!) {
+    getStreamById(id: $id) {
+      displayName
     }
   }
 `);
 
-
-
-type Record = {
-  id: string;
-  timestamp: Date;
-  downloadUrl?: string;
-  content?: string;
+type Props = {
+  params: {
+    id: string;
+  };
 };
 
-export default function Stream() {
-  const [transmissions, setTransmissions] = useState<Record[]>([]);
+export default function Stream(props: Props) {
+  const streamID = decodeURIComponent(props.params.id);
 
-  const { loading, data, error, variables } = useSubscription(
-    TRANSMISSION_SUBSCRIPTION,
-    {
-      onData: opts => {
-        const t = opts.data.data?.transmission;
-        if (t) {
-          const value: Record = {
-            id: t.id,
-            timestamp: t.timestamp,
-            downloadUrl: t.downloadUrl || undefined,
-            content: t.transcription?.content,
-          };
-          setTransmissions([...transmissions, value]);
-        }
-      },
-    },
-  );
+  const {
+    data,
+    loading: streamIsLoading,
+    error,
+  } = useQuery(STREAM_QUERY, { variables: { id: streamID } });
 
-  console.log(loading, data, error, variables);
-
-  const rows = transmissions.map(t => (
-    <TableRow key={t.id}>
-      <TableCell>{t.id}</TableCell>
-      <TableCell>{t.content || "-"}</TableCell>
-      <TableCell>{t.timestamp.toString()}</TableCell>
-      <TableCell>
-        <a href={t.downloadUrl} target="_blank">
-          Link
-        </a>
-      </TableCell>
-    </TableRow>
-  ));
-
-  return (
-    <Container component="main">
-      <Table>
-        <TableHead>
-          <TableRow>
-            <TableCell>ID</TableCell>
-            <TableCell>Message</TableCell>
-            <TableCell>Timestamp</TableCell>
-            <TableCell></TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {rows}
-        </TableBody>
-      </Table>
-    </Container>
-  );
+  if (streamIsLoading) {
+    return (
+      <Container>
+        <CircularProgress variant="indeterminate" />
+      </Container>
+    );
+  } else if (error) {
+    return (
+      <Container>
+        <ErrorAlert error={error} />
+      </Container>
+    );
+  } else if (data?.getStreamById) {
+    return (
+      <Container>
+        <Typography variant="h1" sx={{ textAlign: "center" }}>
+          {data.getStreamById.displayName}
+        </Typography>
+        <StreamTable streamID={streamID} />
+      </Container>
+    );
+  } else {
+    // We've finished loading, but the stream doesn't exist
+    return notFound();
+  }
 }

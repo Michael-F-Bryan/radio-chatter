@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM golang:1.21 AS build
+FROM golang:1.22 AS build
 
 RUN mkdir /app
 WORKDIR /app
@@ -23,6 +23,7 @@ FROM python:3.12-slim AS transcribe
 # Set up Whisper
 RUN apt-get update && apt-get install -y git ffmpeg && rm -rf /var/lib/apt/lists/*
 RUN pip3 install "git+https://github.com/openai/whisper.git"
+# Make sure we download the model ahead of time
 RUN python3 -c "import whisper; whisper.load_model('large-v2', device='cpu')"
 
 COPY --from=build /app/out/radio-chatter /bin/radio-chatter
