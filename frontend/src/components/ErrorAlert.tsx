@@ -1,11 +1,12 @@
 import { ApolloError } from "@apollo/client";
 import { GraphQLErrors } from "@apollo/client/errors";
-import { Alert, AlertTitle, Typography } from "@mui/material";
+import { Alert, AlertTitle, Collapse, Typography } from "@mui/material";
+import { useState } from "react";
 
 type GqlError = GraphQLErrors[0];
 
 type Props = {
-  error: ApolloError;
+  error: Partial<ApolloError>;
   dismiss?: () => void;
 };
 
@@ -13,22 +14,28 @@ type Props = {
  * A helper for displaying Apollo errors as an alert.
  */
 export default function ErrorAlert({ error, dismiss }: Props) {
-  return (
-    <Alert severity="error" onClose={dismiss}>
-      <AlertTitle>{error.message}</AlertTitle>
-      {error.networkError && <NetworkError error={error.networkError} />}
-      {error.graphQLErrors.map((e, i) => (
-        <GraphQLError key={i} error={e} />
-      ))}
-      {error.clientErrors.map((e, i) => (
-        <ClientError key={i} error={e} />
-      ))}
+  const [open, setOpen] = useState(true);
 
-      <details>
-        <summary>Stack Trace</summary>
-        <pre>{error.stack}</pre>
-      </details>
-    </Alert>
+  return (
+    <Collapse in={open}>
+      <Alert
+        severity="error"
+        onClose={() => {
+          setOpen(false);
+          dismiss?.();
+        }}
+      >
+        <AlertTitle>{error.message}</AlertTitle>
+        {error.networkError && <NetworkError error={error.networkError} />}
+        {error.graphQLErrors?.map((e, i) => <GraphQLError key={i} error={e} />)}
+        {error.clientErrors?.map((e, i) => <ClientError key={i} error={e} />)}
+
+        <details>
+          <summary>Stack Trace</summary>
+          <pre>{error.stack}</pre>
+        </details>
+      </Alert>
+    </Collapse>
   );
 }
 
@@ -63,7 +70,7 @@ function formatPath(path: readonly (string | number)[]) {
         return `[${i}]`;
       }
     })
-    .join();
+    .join("");
 }
 
 function ClientError({ error }: { error: Error }) {

@@ -39,6 +39,7 @@ export type Chunk = Node & {
 export type ChunkTransmissionsArgs = {
   after?: InputMaybe<Scalars['ID']['input']>;
   count?: Scalars['Int']['input'];
+  createdAfter?: InputMaybe<Scalars['Time']['input']>;
 };
 
 export type ChunksConnection = {
@@ -112,6 +113,7 @@ export type QueryGetStreamByIdArgs = {
 export type QueryGetStreamsArgs = {
   after?: InputMaybe<Scalars['ID']['input']>;
   count?: Scalars['Int']['input'];
+  createdAfter?: InputMaybe<Scalars['Time']['input']>;
 };
 
 
@@ -150,6 +152,7 @@ export type Stream = Node & {
 export type StreamChunksArgs = {
   after?: InputMaybe<Scalars['ID']['input']>;
   count?: Scalars['Int']['input'];
+  createdAfter?: InputMaybe<Scalars['Time']['input']>;
 };
 
 
@@ -157,6 +160,7 @@ export type StreamChunksArgs = {
 export type StreamTransmissionsArgs = {
   after?: InputMaybe<Scalars['ID']['input']>;
   count?: Scalars['Int']['input'];
+  createdAfter?: InputMaybe<Scalars['Time']['input']>;
 };
 
 export type StreamsConnection = {
@@ -215,7 +219,7 @@ export type StreamQueryVariables = Exact<{
 }>;
 
 
-export type StreamQuery = { __typename?: 'Query', getStreamById?: { __typename?: 'Stream', displayName: string } | null };
+export type StreamQuery = { __typename?: 'Query', getStreamById?: { __typename?: 'Stream', id: string, displayName: string } | null };
 
 export type TransmissionsSubscriptionVariables = Exact<{ [key: string]: never; }>;
 
@@ -227,6 +231,15 @@ export type TranscriptionsSubscriptionVariables = Exact<{ [key: string]: never; 
 
 export type TranscriptionsSubscription = { __typename?: 'Subscription', transcription: { __typename?: 'Transcription', id: string, content: string, transmission: { __typename?: 'Transmission', id: string, timestamp: any, downloadUrl?: string | null, chunk: { __typename?: 'Chunk', stream: { __typename?: 'Stream', id: string } } } } };
 
+export type ExistingTransmissionsQueryVariables = Exact<{
+  stream: Scalars['ID']['input'];
+  createdAfter?: InputMaybe<Scalars['Time']['input']>;
+  after?: InputMaybe<Scalars['ID']['input']>;
+}>;
+
+
+export type ExistingTransmissionsQuery = { __typename?: 'Query', getStreamById?: { __typename?: 'Stream', id: string, transmissions: { __typename?: 'TransmissionsConnection', edges?: Array<{ __typename?: 'Transmission', id: string, timestamp: any, downloadUrl?: string | null, transcription?: { __typename?: 'Transcription', content: string } | null }> | null, pageInfo: { __typename?: 'PageInfo', endCursor?: string | null } } } | null };
+
 export type GetStreamsQueryVariables = Exact<{
   after?: InputMaybe<Scalars['ID']['input']>;
 }>;
@@ -235,7 +248,8 @@ export type GetStreamsQueryVariables = Exact<{
 export type GetStreamsQuery = { __typename?: 'Query', getStreams: { __typename?: 'StreamsConnection', edges?: Array<{ __typename?: 'Stream', id: string, createdAt: any, displayName: string, url: string }> | null, pageInfo: { __typename?: 'PageInfo', endCursor?: string | null } } };
 
 
-export const StreamDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"stream"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"getStreamById"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"displayName"}}]}}]}}]} as unknown as DocumentNode<StreamQuery, StreamQueryVariables>;
+export const StreamDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"stream"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"getStreamById"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"displayName"}}]}}]}}]} as unknown as DocumentNode<StreamQuery, StreamQueryVariables>;
 export const TransmissionsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"subscription","name":{"kind":"Name","value":"transmissions"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"transmission"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"downloadUrl"}},{"kind":"Field","name":{"kind":"Name","value":"transcription"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"content"}}]}},{"kind":"Field","name":{"kind":"Name","value":"chunk"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"stream"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}}]}}]}}]}}]}}]} as unknown as DocumentNode<TransmissionsSubscription, TransmissionsSubscriptionVariables>;
 export const TranscriptionsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"subscription","name":{"kind":"Name","value":"transcriptions"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"transcription"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"content"}},{"kind":"Field","name":{"kind":"Name","value":"transmission"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"downloadUrl"}},{"kind":"Field","name":{"kind":"Name","value":"chunk"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"stream"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}}]}}]}}]}}]}}]}}]} as unknown as DocumentNode<TranscriptionsSubscription, TranscriptionsSubscriptionVariables>;
+export const ExistingTransmissionsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"existingTransmissions"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"stream"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"createdAfter"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"Time"}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"after"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"getStreamById"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"stream"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"transmissions"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"createdAfter"},"value":{"kind":"Variable","name":{"kind":"Name","value":"createdAfter"}}},{"kind":"Argument","name":{"kind":"Name","value":"after"},"value":{"kind":"Variable","name":{"kind":"Name","value":"after"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"edges"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"downloadUrl"}},{"kind":"Field","name":{"kind":"Name","value":"transcription"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"content"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"pageInfo"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"endCursor"}}]}}]}}]}}]}}]} as unknown as DocumentNode<ExistingTransmissionsQuery, ExistingTransmissionsQueryVariables>;
 export const GetStreamsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"GetStreams"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"after"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"getStreams"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"after"},"value":{"kind":"Variable","name":{"kind":"Name","value":"after"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"edges"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"displayName"}},{"kind":"Field","name":{"kind":"Name","value":"url"}}]}},{"kind":"Field","name":{"kind":"Name","value":"pageInfo"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"endCursor"}}]}}]}}]}}]} as unknown as DocumentNode<GetStreamsQuery, GetStreamsQueryVariables>;

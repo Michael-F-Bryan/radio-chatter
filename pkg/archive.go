@@ -168,6 +168,21 @@ func (a ArchiveOperation) Execute(ctx context.Context, state ArchiveState) error
 		zap.Any("chunk", chunk),
 	)
 
+	if chunk.Transmissions != nil {
+		if err := splitChunk(ctx, state, a, chunk); err != nil {
+			return err
+		}
+	}
+
+	state.Logger.Debug("Deleting original chunk file", zap.String("path", a.Path))
+	if err := os.Remove(a.Path); err != nil {
+		return fmt.Errorf("unable to delete %q: %w", a.Path, err)
+	}
+
+	return nil
+}
+
+func splitChunk(ctx context.Context, state ArchiveState, a ArchiveOperation, chunk Chunk) error {
 	state.Logger.Debug(
 		"Splitting",
 		zap.String("path", a.Path),
@@ -182,11 +197,6 @@ func (a ArchiveOperation) Execute(ctx context.Context, state ArchiveState) error
 
 	if err := group.Wait(); err != nil {
 		return fmt.Errorf("unable to split audio: %w", err)
-	}
-
-	state.Logger.Debug("Deleting original chunk file", zap.String("path", a.Path))
-	if err := os.Remove(a.Path); err != nil {
-		return fmt.Errorf("unable to delete %q: %w", a.Path, err)
 	}
 
 	return nil

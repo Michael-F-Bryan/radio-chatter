@@ -10,6 +10,7 @@ import ErrorAlert from "@/components/ErrorAlert";
 const STREAM_QUERY = gql(/* GraphQL */ `
   query stream($id: ID!) {
     getStreamById(id: $id) {
+      id
       displayName
     }
   }

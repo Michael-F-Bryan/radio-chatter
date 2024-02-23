@@ -22,7 +22,7 @@ func (r *chunkResolver) DownloadURL(ctx context.Context, obj *model.Chunk) (*str
 }
 
 // Transmissions is the resolver for the transmissions field.
-func (r *chunkResolver) Transmissions(ctx context.Context, obj *model.Chunk, after *string, count int) (*model.TransmissionsConnection, error) {
+func (r *chunkResolver) Transmissions(ctx context.Context, obj *model.Chunk, after *string, createdAfter *time.Time, count int) (*model.TransmissionsConnection, error) {
 	chunkId, err := decodeModelId[radiochatter.Chunk](obj.ID)
 	if err != nil {
 		return nil, err
@@ -33,8 +33,9 @@ func (r *chunkResolver) Transmissions(ctx context.Context, obj *model.Chunk, aft
 		makeConn: func(edges []model.Transmission, page model.PageInfo) model.TransmissionsConnection {
 			return model.TransmissionsConnection{Edges: edges, PageInfo: &page}
 		},
-		Filter: &radiochatter.Transmission{ChunkID: chunkId},
-		Limit:  30,
+		Filter:       &radiochatter.Transmission{ChunkID: chunkId},
+		CreatedAfter: createdAfter,
+		Limit:        30,
 	}
 
 	return p.Page(r.DB, after, count)
@@ -86,13 +87,14 @@ func (r *mutationResolver) RemoveStream(ctx context.Context, id string) (*model.
 }
 
 // GetStreams is the resolver for the getStreams field.
-func (r *queryResolver) GetStreams(ctx context.Context, after *string, count int) (*model.StreamsConnection, error) {
+func (r *queryResolver) GetStreams(ctx context.Context, after *string, createdAfter *time.Time, count int) (*model.StreamsConnection, error) {
 	p := paginator[radiochatter.Stream, model.Stream, model.StreamsConnection]{
 		mapModel: streamToGraphQL,
 		makeConn: func(edges []model.Stream, page model.PageInfo) model.StreamsConnection {
 			return model.StreamsConnection{Edges: edges, PageInfo: &page}
 		},
-		Limit: 5,
+		CreatedAfter: createdAfter,
+		Limit:        5,
 	}
 
 	return p.Page(r.DB, after, count)
@@ -114,7 +116,7 @@ func (r *queryResolver) GetTransmissionByID(ctx context.Context, id string) (*mo
 }
 
 // Chunks is the resolver for the chunks field.
-func (r *streamResolver) Chunks(ctx context.Context, obj *model.Stream, after *string, count int) (*model.ChunksConnection, error) {
+func (r *streamResolver) Chunks(ctx context.Context, obj *model.Stream, after *string, createdAfter *time.Time, count int) (*model.ChunksConnection, error) {
 	streamId, err := decodeModelId[radiochatter.Stream](obj.ID)
 	if err != nil {
 		return nil, err
@@ -125,15 +127,16 @@ func (r *streamResolver) Chunks(ctx context.Context, obj *model.Stream, after *s
 		makeConn: func(edges []model.Chunk, page model.PageInfo) model.ChunksConnection {
 			return model.ChunksConnection{Edges: edges, PageInfo: &page}
 		},
-		Filter: &radiochatter.Chunk{StreamID: streamId},
-		Limit:  30,
+		Filter:       &radiochatter.Chunk{StreamID: streamId},
+		CreatedAfter: createdAfter,
+		Limit:        30,
 	}
 
 	return p.Page(r.DB, after, count)
 }
 
 // Transmissions is the resolver for the transmissions field.
-func (r *streamResolver) Transmissions(ctx context.Context, obj *model.Stream, after *string, count int) (*model.TransmissionsConnection, error) {
+func (r *streamResolver) Transmissions(ctx context.Context, obj *model.Stream, after *string, createdAfter *time.Time, count int) (*model.TransmissionsConnection, error) {
 	streamId, err := decodeModelId[radiochatter.Stream](obj.ID)
 	if err != nil {
 		return nil, err
@@ -144,6 +147,7 @@ func (r *streamResolver) Transmissions(ctx context.Context, obj *model.Stream, a
 		makeConn: func(edges []model.Transmission, page model.PageInfo) model.TransmissionsConnection {
 			return model.TransmissionsConnection{Edges: edges, PageInfo: &page}
 		},
+		CreatedAfter: createdAfter,
 		BeforeQuery: func(db *gorm.DB) *gorm.DB {
 			return db.Joins("JOIN chunks ON chunks.id = transmissions.chunk_id AND chunks.stream_id = ?", streamId)
 		},
@@ -206,7 +210,7 @@ func (r *transmissionResolver) DownloadURL(ctx context.Context, obj *model.Trans
 
 // Transcription is the resolver for the transcription field.
 func (r *transmissionResolver) Transcription(ctx context.Context, obj *model.Transmission) (*model.Transcription, error) {
-	realID, err := decodeModelId[radiochatter.Transcription](obj.ID)
+	realID, err := decodeModelId[radiochatter.Transmission](obj.ID)
 	if err != nil {
 		return nil, err
 	}

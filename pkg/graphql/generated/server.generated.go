@@ -61,7 +61,7 @@ type ComplexityRoot struct {
 		Sha256        func(childComplexity int) int
 		Stream        func(childComplexity int) int
 		Timestamp     func(childComplexity int) int
-		Transmissions func(childComplexity int, after *string, count int) int
+		Transmissions func(childComplexity int, after *string, createdAfter *time.Time, count int) int
 		UpdatedAt     func(childComplexity int) int
 	}
 
@@ -84,16 +84,16 @@ type ComplexityRoot struct {
 	Query struct {
 		GetChunkByID        func(childComplexity int, id string) int
 		GetStreamByID       func(childComplexity int, id string) int
-		GetStreams          func(childComplexity int, after *string, count int) int
+		GetStreams          func(childComplexity int, after *string, createdAfter *time.Time, count int) int
 		GetTransmissionByID func(childComplexity int, id string) int
 	}
 
 	Stream struct {
-		Chunks        func(childComplexity int, after *string, count int) int
+		Chunks        func(childComplexity int, after *string, createdAfter *time.Time, count int) int
 		CreatedAt     func(childComplexity int) int
 		DisplayName   func(childComplexity int) int
 		ID            func(childComplexity int) int
-		Transmissions func(childComplexity int, after *string, count int) int
+		Transmissions func(childComplexity int, after *string, createdAfter *time.Time, count int) int
 		URL           func(childComplexity int) int
 		UpdatedAt     func(childComplexity int) int
 	}
@@ -137,7 +137,7 @@ type ComplexityRoot struct {
 
 type ChunkResolver interface {
 	DownloadURL(ctx context.Context, obj *model.Chunk) (*string, error)
-	Transmissions(ctx context.Context, obj *model.Chunk, after *string, count int) (*model.TransmissionsConnection, error)
+	Transmissions(ctx context.Context, obj *model.Chunk, after *string, createdAfter *time.Time, count int) (*model.TransmissionsConnection, error)
 	Stream(ctx context.Context, obj *model.Chunk) (*model.Stream, error)
 }
 type MutationResolver interface {
@@ -145,14 +145,14 @@ type MutationResolver interface {
 	RemoveStream(ctx context.Context, id string) (*model.Stream, error)
 }
 type QueryResolver interface {
-	GetStreams(ctx context.Context, after *string, count int) (*model.StreamsConnection, error)
+	GetStreams(ctx context.Context, after *string, createdAfter *time.Time, count int) (*model.StreamsConnection, error)
 	GetStreamByID(ctx context.Context, id string) (*model.Stream, error)
 	GetChunkByID(ctx context.Context, id string) (*model.Chunk, error)
 	GetTransmissionByID(ctx context.Context, id string) (*model.Transmission, error)
 }
 type StreamResolver interface {
-	Chunks(ctx context.Context, obj *model.Stream, after *string, count int) (*model.ChunksConnection, error)
-	Transmissions(ctx context.Context, obj *model.Stream, after *string, count int) (*model.TransmissionsConnection, error)
+	Chunks(ctx context.Context, obj *model.Stream, after *string, createdAfter *time.Time, count int) (*model.ChunksConnection, error)
+	Transmissions(ctx context.Context, obj *model.Stream, after *string, createdAfter *time.Time, count int) (*model.TransmissionsConnection, error)
 }
 type SubscriptionResolver interface {
 	Chunk(ctx context.Context) (<-chan *model.Chunk, error)
@@ -239,7 +239,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Chunk.Transmissions(childComplexity, args["after"].(*string), args["count"].(int)), true
+		return e.complexity.Chunk.Transmissions(childComplexity, args["after"].(*string), args["createdAfter"].(*time.Time), args["count"].(int)), true
 
 	case "Chunk.updatedAt":
 		if e.complexity.Chunk.UpdatedAt == nil {
@@ -341,7 +341,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Query.GetStreams(childComplexity, args["after"].(*string), args["count"].(int)), true
+		return e.complexity.Query.GetStreams(childComplexity, args["after"].(*string), args["createdAfter"].(*time.Time), args["count"].(int)), true
 
 	case "Query.getTransmissionById":
 		if e.complexity.Query.GetTransmissionByID == nil {
@@ -365,7 +365,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Stream.Chunks(childComplexity, args["after"].(*string), args["count"].(int)), true
+		return e.complexity.Stream.Chunks(childComplexity, args["after"].(*string), args["createdAfter"].(*time.Time), args["count"].(int)), true
 
 	case "Stream.createdAt":
 		if e.complexity.Stream.CreatedAt == nil {
@@ -398,7 +398,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Stream.Transmissions(childComplexity, args["after"].(*string), args["count"].(int)), true
+		return e.complexity.Stream.Transmissions(childComplexity, args["after"].(*string), args["createdAfter"].(*time.Time), args["count"].(int)), true
 
 	case "Stream.url":
 		if e.complexity.Stream.URL == nil {
@@ -740,12 +740,12 @@ type Stream implements Node {
   """
   Iterate over the raw chunks of audio downloaded for this stream.
   """
-  chunks(after: ID, count: Int! = 30): ChunksConnection!
+  chunks(after: ID, createdAfter: Time, count: Int! = 30): ChunksConnection!
 
   """
   Iterate over the radio messages detected in the stream.
   """
-  transmissions(after: ID, count: Int! = 30): TransmissionsConnection!
+  transmissions(after: ID, createdAfter: Time, count: Int! = 30): TransmissionsConnection!
 }
 
 type ChunksConnection {
@@ -768,7 +768,7 @@ type Chunk implements Node {
   """
   Iterate over the radio messages detected in the chunk.
   """
-  transmissions(after: ID, count: Int! = 30): TransmissionsConnection!
+  transmissions(after: ID, createdAfter: Time, count: Int! = 30): TransmissionsConnection!
   """
   The stream this chunk belongs to.
   """
@@ -822,7 +822,7 @@ type StreamsConnection {
 
 type Query {
   """Iterate over all active streams."""
-  getStreams(after: ID, count: Int! = 10): StreamsConnection!
+  getStreams(after: ID, createdAfter: Time, count: Int! = 10): StreamsConnection!
   """Look up a stream by its ID."""
   getStreamById(id: ID!): Stream
   """Look up a chunk by its ID."""
@@ -871,15 +871,24 @@ func (ec *executionContext) field_Chunk_transmissions_args(ctx context.Context, 
 		}
 	}
 	args["after"] = arg0
-	var arg1 int
-	if tmp, ok := rawArgs["count"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("count"))
-		arg1, err = ec.unmarshalNInt2int(ctx, tmp)
+	var arg1 *time.Time
+	if tmp, ok := rawArgs["createdAfter"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("createdAfter"))
+		arg1, err = ec.unmarshalOTime2ᚖtimeᚐTime(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
 	}
-	args["count"] = arg1
+	args["createdAfter"] = arg1
+	var arg2 int
+	if tmp, ok := rawArgs["count"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("count"))
+		arg2, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["count"] = arg2
 	return args, nil
 }
 
@@ -970,15 +979,24 @@ func (ec *executionContext) field_Query_getStreams_args(ctx context.Context, raw
 		}
 	}
 	args["after"] = arg0
-	var arg1 int
-	if tmp, ok := rawArgs["count"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("count"))
-		arg1, err = ec.unmarshalNInt2int(ctx, tmp)
+	var arg1 *time.Time
+	if tmp, ok := rawArgs["createdAfter"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("createdAfter"))
+		arg1, err = ec.unmarshalOTime2ᚖtimeᚐTime(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
 	}
-	args["count"] = arg1
+	args["createdAfter"] = arg1
+	var arg2 int
+	if tmp, ok := rawArgs["count"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("count"))
+		arg2, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["count"] = arg2
 	return args, nil
 }
 
@@ -1009,15 +1027,24 @@ func (ec *executionContext) field_Stream_chunks_args(ctx context.Context, rawArg
 		}
 	}
 	args["after"] = arg0
-	var arg1 int
-	if tmp, ok := rawArgs["count"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("count"))
-		arg1, err = ec.unmarshalNInt2int(ctx, tmp)
+	var arg1 *time.Time
+	if tmp, ok := rawArgs["createdAfter"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("createdAfter"))
+		arg1, err = ec.unmarshalOTime2ᚖtimeᚐTime(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
 	}
-	args["count"] = arg1
+	args["createdAfter"] = arg1
+	var arg2 int
+	if tmp, ok := rawArgs["count"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("count"))
+		arg2, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["count"] = arg2
 	return args, nil
 }
 
@@ -1033,15 +1060,24 @@ func (ec *executionContext) field_Stream_transmissions_args(ctx context.Context,
 		}
 	}
 	args["after"] = arg0
-	var arg1 int
-	if tmp, ok := rawArgs["count"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("count"))
-		arg1, err = ec.unmarshalNInt2int(ctx, tmp)
+	var arg1 *time.Time
+	if tmp, ok := rawArgs["createdAfter"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("createdAfter"))
+		arg1, err = ec.unmarshalOTime2ᚖtimeᚐTime(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
 	}
-	args["count"] = arg1
+	args["createdAfter"] = arg1
+	var arg2 int
+	if tmp, ok := rawArgs["count"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("count"))
+		arg2, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["count"] = arg2
 	return args, nil
 }
 
@@ -1358,7 +1394,7 @@ func (ec *executionContext) _Chunk_transmissions(ctx context.Context, field grap
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Chunk().Transmissions(rctx, obj, fc.Args["after"].(*string), fc.Args["count"].(int))
+		return ec.resolvers.Chunk().Transmissions(rctx, obj, fc.Args["after"].(*string), fc.Args["createdAfter"].(*time.Time), fc.Args["count"].(int))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1901,7 +1937,7 @@ func (ec *executionContext) _Query_getStreams(ctx context.Context, field graphql
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().GetStreams(rctx, fc.Args["after"].(*string), fc.Args["count"].(int))
+		return ec.resolvers.Query().GetStreams(rctx, fc.Args["after"].(*string), fc.Args["createdAfter"].(*time.Time), fc.Args["count"].(int))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -2521,7 +2557,7 @@ func (ec *executionContext) _Stream_chunks(ctx context.Context, field graphql.Co
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Stream().Chunks(rctx, obj, fc.Args["after"].(*string), fc.Args["count"].(int))
+		return ec.resolvers.Stream().Chunks(rctx, obj, fc.Args["after"].(*string), fc.Args["createdAfter"].(*time.Time), fc.Args["count"].(int))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -2582,7 +2618,7 @@ func (ec *executionContext) _Stream_transmissions(ctx context.Context, field gra
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Stream().Transmissions(rctx, obj, fc.Args["after"].(*string), fc.Args["count"].(int))
+		return ec.resolvers.Stream().Transmissions(rctx, obj, fc.Args["after"].(*string), fc.Args["createdAfter"].(*time.Time), fc.Args["count"].(int))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -7461,6 +7497,22 @@ func (ec *executionContext) marshalOString2ᚖstring(ctx context.Context, sel as
 		return graphql.Null
 	}
 	res := graphql.MarshalString(*v)
+	return res
+}
+
+func (ec *executionContext) unmarshalOTime2ᚖtimeᚐTime(ctx context.Context, v interface{}) (*time.Time, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalTime(v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOTime2ᚖtimeᚐTime(ctx context.Context, sel ast.SelectionSet, v *time.Time) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	res := graphql.MarshalTime(*v)
 	return res
 }
 

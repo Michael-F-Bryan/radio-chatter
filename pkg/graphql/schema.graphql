@@ -54,12 +54,12 @@ type Stream implements Node {
   """
   Iterate over the raw chunks of audio downloaded for this stream.
   """
-  chunks(after: ID, count: Int! = 30): ChunksConnection!
+  chunks(after: ID, createdAfter: Time, count: Int! = 30): ChunksConnection!
 
   """
   Iterate over the radio messages detected in the stream.
   """
-  transmissions(after: ID, count: Int! = 30): TransmissionsConnection!
+  transmissions(after: ID, createdAfter: Time, count: Int! = 30): TransmissionsConnection!
 }
 
 type ChunksConnection {
@@ -82,7 +82,7 @@ type Chunk implements Node {
   """
   Iterate over the radio messages detected in the chunk.
   """
-  transmissions(after: ID, count: Int! = 30): TransmissionsConnection!
+  transmissions(after: ID, createdAfter: Time, count: Int! = 30): TransmissionsConnection!
   """
   The stream this chunk belongs to.
   """
@@ -136,7 +136,7 @@ type StreamsConnection {
 
 type Query {
   """Iterate over all active streams."""
-  getStreams(after: ID, count: Int! = 10): StreamsConnection!
+  getStreams(after: ID, createdAfter: Time, count: Int! = 10): StreamsConnection!
   """Look up a stream by its ID."""
   getStreamById(id: ID!): Stream
   """Look up a chunk by its ID."""

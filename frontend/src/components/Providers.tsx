@@ -11,6 +11,7 @@ import { ThemeProvider } from "@mui/material";
 import { SessionProvider } from "next-auth/react";
 
 import { theme } from "../theme";
+import { ExistingTransmissionsQuery } from "../__generated__/graphql";
 
 /**
  * A wrapper which is used for providing global context objects.

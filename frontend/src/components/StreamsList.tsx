@@ -29,34 +29,33 @@ const STREAMS_QUERY = gql(/* GraphQL */ `
 `);
 
 type Stream = {
-  id: string,
-  createdAt: Date,
-  displayName: string,
-  url: string,
-}
-
+  id: string;
+  createdAt: Date;
+  displayName: string;
+  url: string;
+};
 
 export default function StreamsList() {
   const [streams, setStreams] = useState<Stream[]>([]);
   const [errors, setErrors] = useState<ApolloError[]>([]);
-  const { fetchMore } = useQuery(
-    STREAMS_QUERY,
-    {
-      onError: e => {
-        console.error(e);
-        setErrors([...errors, e]);
-      },
-      onCompleted: data => {
-        const { pageInfo: { endCursor }, edges } = data.getStreams;
-        if (edges) {
-          setStreams([...streams, ...edges]);
-        }
-        if (endCursor) {
-          fetchMore({ variables: { after: endCursor } });
-        }
+  const { fetchMore } = useQuery(STREAMS_QUERY, {
+    onError: e => {
+      console.error(e);
+      setErrors([...errors, e]);
+    },
+    onCompleted: data => {
+      const {
+        pageInfo: { endCursor },
+        edges,
+      } = data.getStreams;
+      if (edges) {
+        setStreams([...streams, ...edges]);
+      }
+      if (endCursor) {
+        fetchMore({ variables: { after: endCursor } });
       }
     },
-  );
+  });
 
   const rows = streams.map(s => (
     <TableRow key={s.id}>

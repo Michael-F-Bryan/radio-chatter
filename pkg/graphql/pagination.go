@@ -2,6 +2,7 @@ package graphql
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/Michael-F-Bryan/radio-chatter/pkg/graphql/model"
 	"gorm.io/gorm"
@@ -15,11 +16,13 @@ type paginator[Model any, GeneratedModel any, Connection any] struct {
 	// A simple filter which looks for items where the model's field are set to
 	// a particular value.
 	Filter *Model
+	// Only include items created after a particular date.
+	CreatedAfter *time.Time
+	// The maximum number of results this query is allowed to return.
+	Limit int
 	// A callback fired just before executing the query, typically used for more
 	// complex filtering.
 	BeforeQuery func(db *gorm.DB) *gorm.DB
-	// The maximum number of results this query is allowed to return.
-	Limit int
 }
 
 func (p paginator[Model, GeneratedModel, Connection]) Page(db *gorm.DB, after *string, count int) (*Connection, error) {
@@ -27,6 +30,8 @@ func (p paginator[Model, GeneratedModel, Connection]) Page(db *gorm.DB, after *s
 
 	var dummy Model
 	db = db.Model(&dummy)
+
+	tableName := tableName[Model](db)
 
 	if p.Limit > 0 && p.Limit < count {
 		// Make sure users can't ask for too many items at once
@@ -41,11 +46,15 @@ func (p paginator[Model, GeneratedModel, Connection]) Page(db *gorm.DB, after *s
 		}
 		// Note: We explicitly use the table name (e.g. "transmissions.id") so
 		// later steps (e.g. a join) can't introduce ambiguities.
-		db = db.Where(tableName[Model](db)+".id > ?", id)
+		db = db.Where(tableName+".id > ?", id)
 	}
 
 	if p.Filter != nil {
 		db = db.Where(p.Filter)
+	}
+
+	if p.CreatedAfter != nil {
+		db = db.Where(tableName+".created_at >= ?", p.CreatedAfter)
 	}
 
 	if p.BeforeQuery != nil {

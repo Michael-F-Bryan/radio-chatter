@@ -7,7 +7,9 @@ import StreamsList from "@/components/StreamsList";
 export default function Home() {
   return (
     <Container component="main">
-      <Typography variant="h1" sx={{ textAlign: "center" }}>Streams</Typography>
+      <Typography variant="h1" sx={{ textAlign: "center" }}>
+        Streams
+      </Typography>
       <StreamsList />
     </Container>
   );

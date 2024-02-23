@@ -126,7 +126,7 @@ func recoverFunc(ctx context.Context, err interface{}) (userMessage error) {
 		zap.Any("payload", err),
 	)
 
-	return gqlerror.Errorf("Internal server error!")
+	return gqlerror.Errorf("Resolver panicked: %s", err)
 }
 
 func logGraphQLErrors(ctx context.Context, next gql.ResponseHandler) *gql.Response {

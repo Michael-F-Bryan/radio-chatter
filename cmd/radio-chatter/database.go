@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	radiochatter "github.com/Michael-F-Bryan/radio-chatter/pkg"
@@ -85,7 +86,7 @@ func (l *zapLogger) Error(ctx context.Context, fmt string, args ...interface{}) 
 }
 
 func (l *zapLogger) Trace(ctx context.Context, begin time.Time, fc func() (sql string, rowsAffected int64), err error) {
-	if err != nil {
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		sql, rowsAffected := fc()
 		l.inner.Error(
 			"SQL Error",
