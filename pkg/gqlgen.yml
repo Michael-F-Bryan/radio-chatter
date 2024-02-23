@@ -90,9 +90,17 @@ models:
         resolver: true
       downloadUrl:
         resolver: true
+      stream:
+        resolver: true
   Transmission:
     fields:
       downloadUrl:
         resolver: true
       transcription:
+        resolver: true
+      chunk:
+        resolver: true
+  Transcription:
+    fields:
+      transmission:
         resolver: true

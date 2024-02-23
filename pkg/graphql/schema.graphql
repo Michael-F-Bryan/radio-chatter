@@ -83,6 +83,10 @@ type Chunk implements Node {
   Iterate over the radio messages detected in the chunk.
   """
   transmissions(after: ID, count: Int! = 30): TransmissionsConnection!
+  """
+  The stream this chunk belongs to.
+  """
+  stream: Stream!
 }
 
 type TransmissionsConnection {
@@ -107,6 +111,10 @@ type Transmission implements Node {
   """Where the chunk's audio file can be downloaded from."""
   downloadUrl: String
   transcription: Transcription
+  """
+  The chunk this transmission belongs to.
+  """
+  chunk: Chunk!
 }
 
 type Transcription implements Node {
@@ -114,6 +122,11 @@ type Transcription implements Node {
   createdAt: Time!
   updatedAt: Time!
   content: String!
+
+  """
+  The transmission this transcription belongs to.
+  """
+  transmission: Transmission!
 }
 
 type StreamsConnection {

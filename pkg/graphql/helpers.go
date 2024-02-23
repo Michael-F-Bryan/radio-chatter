@@ -17,8 +17,18 @@ import (
 )
 
 func modelId(value any) string {
-	t := reflect.TypeOf(value)
 	v := reflect.ValueOf(value)
+	t := v.Type()
+
+	if t.Kind() == reflect.Pointer {
+		// Automatically dereference the pointer
+		if v.IsNil() {
+			panic("unable to get a model ID from a nil pointer")
+		}
+
+		v = v.Elem()
+		t = v.Type()
+	}
 
 	for _, field := range reflect.VisibleFields(t) {
 		if field.Type.AssignableTo(reflect.TypeOf(gorm.Model{})) {
@@ -198,4 +208,33 @@ func signedURL(ctx context.Context, logger *zap.Logger, storage radiochatter.Blo
 	u := url.String()
 
 	return &u, nil
+}
+
+func getParentObject[Child any, Parent any, ParentGraphQL any](
+	db *gorm.DB,
+	childID string,
+	getParentID func(Child) uint,
+	mapFunc func(Parent) ParentGraphQL,
+) (*ParentGraphQL, error) {
+	realId, err := decodeModelId[Child](childID)
+	if err != nil {
+		return nil, err
+	}
+
+	var child Child
+
+	err = db.First(&child, "id = ?", realId).Error
+	if err != nil {
+		return nil, fmt.Errorf("unable to find the %s with id=%d: %w", typeOf[Child]().String(), realId, err)
+	}
+
+	var parent Parent
+	parentID := getParentID(child)
+
+	if err := db.Find(&parent, "id = ?", parentID).Error; err != nil {
+		return nil, fmt.Errorf("unable to find the %s with id=%d: %w", typeOf[Parent]().String(), parentID, err)
+	}
+
+	model := mapFunc(parent)
+	return &model, nil
 }

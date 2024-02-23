@@ -29,6 +29,8 @@ type Chunk struct {
 	DownloadURL *string `json:"downloadUrl,omitempty"`
 	// Iterate over the radio messages detected in the chunk.
 	Transmissions *TransmissionsConnection `json:"transmissions"`
+	// The stream this chunk belongs to.
+	Stream *Stream `json:"stream"`
 }
 
 func (Chunk) IsNode() {}
@@ -110,6 +112,8 @@ type Transcription struct {
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 	Content   string    `json:"content"`
+	// The transmission this transcription belongs to.
+	Transmission *Transmission `json:"transmission"`
 }
 
 func (Transcription) IsNode() {}
@@ -137,6 +141,8 @@ type Transmission struct {
 	// Where the chunk's audio file can be downloaded from.
 	DownloadURL   *string        `json:"downloadUrl,omitempty"`
 	Transcription *Transcription `json:"transcription,omitempty"`
+	// The chunk this transmission belongs to.
+	Chunk *Chunk `json:"chunk"`
 }
 
 func (Transmission) IsNode() {}
