@@ -1,13 +1,11 @@
 package graphql
 
 import (
-	radiochatter "github.com/Michael-F-Bryan/radio-chatter/pkg"
-	"go.uber.org/zap"
+	"github.com/Michael-F-Bryan/radio-chatter/pkg/blob"
 	"gorm.io/gorm"
 )
 
 type Resolver struct {
 	DB      *gorm.DB
-	Logger  *zap.Logger
-	Storage radiochatter.BlobStorage
+	Storage blob.Storage
 }

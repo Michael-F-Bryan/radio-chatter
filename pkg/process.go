@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 
+	"github.com/Michael-F-Bryan/radio-chatter/pkg/blob"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
@@ -16,7 +17,7 @@ func StartProcessing(
 	logger *zap.Logger,
 	group *errgroup.Group,
 	stream Stream,
-	storage BlobStorage,
+	storage blob.Storage,
 	db *gorm.DB,
 ) (cleanup func()) {
 	archiveOps := make(chan ArchiveOperation)
@@ -39,7 +40,7 @@ func archive(
 	ctx context.Context,
 	logger *zap.Logger,
 	archiveOps <-chan ArchiveOperation,
-	storage BlobStorage,
+	storage blob.Storage,
 	db *gorm.DB,
 	stream Stream,
 ) thunk {

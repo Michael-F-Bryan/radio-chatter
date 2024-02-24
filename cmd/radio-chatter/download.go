@@ -27,6 +27,7 @@ func download(cmd *cobra.Command, args []string) {
 
 	group, ctx := errgroup.WithContext(ctx)
 	storage := setupStorage(logger, cfg.Storage)
+	defer storage.Close()
 	db := setupDatabase(ctx, logger, cfg)
 
 	var streams []radiochatter.Stream

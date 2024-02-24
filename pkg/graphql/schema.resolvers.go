@@ -12,13 +12,14 @@ import (
 	radiochatter "github.com/Michael-F-Bryan/radio-chatter/pkg"
 	"github.com/Michael-F-Bryan/radio-chatter/pkg/graphql/generated"
 	"github.com/Michael-F-Bryan/radio-chatter/pkg/graphql/model"
+	"github.com/Michael-F-Bryan/radio-chatter/pkg/middleware"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
 // DownloadURL is the resolver for the downloadUrl field.
 func (r *chunkResolver) DownloadURL(ctx context.Context, obj *model.Chunk) (*string, error) {
-	return signedURL(ctx, r.Logger, r.Storage, obj.Sha256)
+	return signedURL(ctx, middleware.GetLogger(ctx), r.Storage, obj.Sha256)
 }
 
 // Transmissions is the resolver for the transmissions field.
@@ -62,7 +63,7 @@ func (r *mutationResolver) RegisterStream(ctx context.Context, input model.Regis
 		return nil, err
 	}
 
-	r.Logger.Info("Stream created", zap.Any("stream", stream))
+	middleware.GetLogger(ctx).Info("Stream created", zap.Any("stream", stream))
 
 	model := streamToGraphQL(stream)
 	return &model, nil
@@ -80,7 +81,7 @@ func (r *mutationResolver) RemoveStream(ctx context.Context, id string) (*model.
 		return nil, err
 	}
 
-	r.Logger.Info("Stream deleted", zap.Any("stream", stream))
+	middleware.GetLogger(ctx).Info("Stream deleted", zap.Any("stream", stream))
 
 	value := streamToGraphQL(stream)
 	return &value, nil
@@ -162,7 +163,7 @@ func (r *subscriptionResolver) Chunk(ctx context.Context) (<-chan *model.Chunk, 
 	ch := pollForUpdates[radiochatter.Chunk, model.Chunk](
 		ctx,
 		r.DB,
-		r.Logger,
+		middleware.GetLogger(ctx),
 		chunkToGraphQL,
 		func(c radiochatter.Chunk) time.Time { return c.CreatedAt },
 	)
@@ -174,7 +175,7 @@ func (r *subscriptionResolver) Transmission(ctx context.Context) (<-chan *model.
 	ch := pollForUpdates[radiochatter.Transmission, model.Transmission](
 		ctx,
 		r.DB,
-		r.Logger,
+		middleware.GetLogger(ctx),
 		transmissionToGraphQL,
 		func(c radiochatter.Transmission) time.Time { return c.CreatedAt },
 	)
@@ -186,7 +187,7 @@ func (r *subscriptionResolver) Transcription(ctx context.Context) (<-chan *model
 	ch := pollForUpdates[radiochatter.Transcription, model.Transcription](
 		ctx,
 		r.DB,
-		r.Logger,
+		middleware.GetLogger(ctx),
 		transcriptionToGraphQL,
 		func(c radiochatter.Transcription) time.Time { return c.CreatedAt },
 	)
@@ -205,7 +206,7 @@ func (r *transcriptionResolver) Transmission(ctx context.Context, obj *model.Tra
 
 // DownloadURL is the resolver for the downloadUrl field.
 func (r *transmissionResolver) DownloadURL(ctx context.Context, obj *model.Transmission) (*string, error) {
-	return signedURL(ctx, r.Logger, r.Storage, obj.Sha256)
+	return signedURL(ctx, middleware.GetLogger(ctx), r.Storage, obj.Sha256)
 }
 
 // Transcription is the resolver for the transcription field.

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	radiochatter "github.com/Michael-F-Bryan/radio-chatter/pkg"
+	"github.com/Michael-F-Bryan/radio-chatter/pkg/blob"
 	"github.com/Michael-F-Bryan/radio-chatter/pkg/graphql/model"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -186,14 +187,14 @@ func pollForUpdates[Model any, Generated any](
 	return ch
 }
 
-func signedURL(ctx context.Context, logger *zap.Logger, storage radiochatter.BlobStorage, sha256 string) (*string, error) {
-	key, err := radiochatter.ParseBlobKey(sha256)
+func signedURL(ctx context.Context, logger *zap.Logger, storage blob.Storage, sha256 string) (*string, error) {
+	key, err := blob.ParseKey(sha256)
 	if err != nil {
 		return nil, err
 	}
 
-	url, err := storage.Link(ctx, key)
-	if errors.Is(err, radiochatter.ErrBlobNotFound) {
+	url, err := storage.Link(ctx, key, 1*time.Hour)
+	if errors.Is(err, blob.ErrNotFound) {
 		return nil, nil
 	} else if err != nil {
 		return nil, err

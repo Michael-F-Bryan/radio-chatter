@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Michael-F-Bryan/radio-chatter/pkg/blob"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -39,12 +40,12 @@ type transcriber struct {
 	logger  *zap.Logger
 	db      *gorm.DB
 	stt     SpeechToText
-	storage BlobStorage
+	storage blob.Storage
 }
 
 // Transcribe will continuously poll the database for new messages and run
 // speech-to-text on them.
-func Transcribe(ctx context.Context, logger *zap.Logger, db *gorm.DB, stt SpeechToText, storage BlobStorage) error {
+func Transcribe(ctx context.Context, logger *zap.Logger, db *gorm.DB, stt SpeechToText, storage blob.Storage) error {
 	t := transcriber{
 		logger:  logger,
 		db:      db.WithContext(ctx),
@@ -97,11 +98,11 @@ func (t *transcriber) transcribeOnce(ctx context.Context) (int, error) {
 	var urls []*url.URL
 
 	for _, transmission := range transmissions {
-		key, err := ParseBlobKey(transmission.Sha256)
+		key, err := blob.ParseKey(transmission.Sha256)
 		if err != nil {
 			return 0, fmt.Errorf("unable to parse %q as a blob key: %w", transmission.Sha256, err)
 		}
-		url, err := t.storage.Link(ctx, key)
+		url, err := t.storage.Link(ctx, key, 1*time.Hour)
 		if err != nil {
 			return 0, fmt.Errorf("unable to get a link to %q: %w", key, err)
 		}

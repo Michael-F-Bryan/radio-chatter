@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Michael-F-Bryan/radio-chatter/pkg/middleware"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -21,8 +22,9 @@ type DatabaseHealth struct {
 	Error        string  `json:"error,omitempty"`
 }
 
-func Healthz(db *gorm.DB, logger *zap.Logger) http.Handler {
+func Healthz(db *gorm.DB) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		logger := middleware.GetLogger(r.Context())
 		dbHealth := databaseHealth(r.Context(), db)
 
 		status := HealthStatus{

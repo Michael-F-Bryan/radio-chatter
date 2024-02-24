@@ -4,7 +4,10 @@ import (
 	"net/url"
 	"os/exec"
 	"testing"
+	"time"
 
+	"github.com/Michael-F-Bryan/radio-chatter/pkg/blob"
+	"github.com/Michael-F-Bryan/radio-chatter/pkg/on_disk_storage"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap/zaptest"
 	"gorm.io/gorm"
@@ -37,7 +40,9 @@ func TestTranscribeUsingWhisper(t *testing.T) {
 
 	ctx := testContext(t)
 	logger := zaptest.NewLogger(t)
-	storage := NewOnDiskStorage(logger, t.TempDir())
+	storage, err := on_disk_storage.New(logger, t.TempDir())
+	assert.NoError(t, err)
+	defer storage.Close()
 	db := testDatabase(ctx, t)
 	recording := testRecording(t)
 	state := ArchiveState{
@@ -49,9 +54,9 @@ func TestTranscribeUsingWhisper(t *testing.T) {
 	transmission, err := splitAudio(ctx, state, recording, span, Chunk{})
 	assert.NoError(t, err)
 	w := NewWhisperTranscriber(logger)
-	key, err := ParseBlobKey(transmission.Sha256)
+	key, err := blob.ParseKey(transmission.Sha256)
 	assert.NoError(t, err)
-	recordingURL, err := storage.Link(ctx, key)
+	recordingURL, err := storage.Link(ctx, key, 1*time.Hour)
 	assert.NoError(t, err)
 
 	transcriptions, err := w.SpeechToText(ctx, []*url.URL{recordingURL})

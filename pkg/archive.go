@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/Michael-F-Bryan/radio-chatter/pkg/blob"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
@@ -19,7 +20,7 @@ import (
 // ArchiveState is the state passed to archive operations.
 type ArchiveState struct {
 	Logger  *zap.Logger
-	Storage BlobStorage
+	Storage blob.Storage
 	DB      *gorm.DB
 	Stream  Stream
 }

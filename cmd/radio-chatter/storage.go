@@ -4,7 +4,8 @@ import (
 	"os"
 	"path"
 
-	radiochatter "github.com/Michael-F-Bryan/radio-chatter/pkg"
+	"github.com/Michael-F-Bryan/radio-chatter/pkg/blob"
+	"github.com/Michael-F-Bryan/radio-chatter/pkg/on_disk_storage"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -16,7 +17,7 @@ func registerStorageFlags(flags *pflag.FlagSet) {
 	_ = viper.BindEnv("storage.blob", "BLOB_URL")
 }
 
-func setupStorage(logger *zap.Logger, cfg StorageConfig) radiochatter.BlobStorage {
+func setupStorage(logger *zap.Logger, cfg StorageConfig) blob.Storage {
 	if logger.Name() != "storage" {
 		logger = logger.Named("storage")
 	}
@@ -26,10 +27,15 @@ func setupStorage(logger *zap.Logger, cfg StorageConfig) radiochatter.BlobStorag
 	if baseDir == "" {
 		cacheDir, err := os.UserCacheDir()
 		if err != nil {
-			logger.Error("Unable to get the user's cache directory", zap.Error(err))
+			logger.Fatal("Unable to get the user's cache directory", zap.Error(err))
 		}
 		baseDir = path.Join(cacheDir, "radio-chatter", "blob-storage")
 	}
 
-	return radiochatter.NewOnDiskStorage(logger, baseDir)
+	storage, err := on_disk_storage.New(logger, baseDir)
+	if err != nil {
+		logger.Fatal("Unable to set up the on-disk storage", zap.Error(err))
+	}
+
+	return storage
 }

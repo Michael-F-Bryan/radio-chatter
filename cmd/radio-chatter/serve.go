@@ -41,6 +41,7 @@ func serve(cmd *cobra.Command, args []string) {
 	cfg := GetConfig(ctx)
 
 	storage := setupStorage(logger, cfg.Storage)
+	defer storage.Close()
 	db := setupDatabase(ctx, logger, cfg)
 	addr := cfg.Serve.Addr()
 

@@ -23,6 +23,7 @@ func transcribe(cmd *cobra.Command, args []string) {
 	cfg := GetConfig(ctx)
 	db := setupDatabase(ctx, logger, cfg)
 	storage := setupStorage(logger, cfg.Storage)
+	defer storage.Close()
 	whisper := radiochatter.NewWhisperTranscriber(logger.Named("whisper"))
 
 	logger.Info("Started running speech-to-text")

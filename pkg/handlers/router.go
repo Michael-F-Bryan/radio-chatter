@@ -10,8 +10,9 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/99designs/gqlgen/graphql/playground"
-	radiochatter "github.com/Michael-F-Bryan/radio-chatter/pkg"
+	"github.com/Michael-F-Bryan/radio-chatter/pkg/blob"
 	"github.com/Michael-F-Bryan/radio-chatter/pkg/graphql"
+	"github.com/Michael-F-Bryan/radio-chatter/pkg/middleware"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/vektah/gqlparser/v2/gqlerror"
@@ -19,12 +20,11 @@ import (
 	"gorm.io/gorm"
 )
 
-func Router(logger *zap.Logger, db *gorm.DB, storage radiochatter.BlobStorage, devMode bool) http.Handler {
+func Router(logger *zap.Logger, db *gorm.DB, storage blob.Storage, devMode bool) http.Handler {
 	r := mux.NewRouter()
 
 	resolver := &graphql.Resolver{
 		DB:      db,
-		Logger:  logger.Named("graphql"),
 		Storage: storage,
 	}
 	srv := handler.NewDefaultServer(graphql.NewExecutableSchema(graphql.Config{
@@ -37,7 +37,7 @@ func Router(logger *zap.Logger, db *gorm.DB, storage radiochatter.BlobStorage, d
 	srv.AddTransport(&transport.Websocket{})
 	srv.AroundResponses(logGraphQLErrors)
 
-	r.Path("/healthz").Methods(http.MethodHead, http.MethodGet).Handler(Healthz(db, logger))
+	r.Path("/healthz").Methods(http.MethodHead, http.MethodGet).Handler(Healthz(db))
 	r.Path("/graphql").Schemes("http", "https", "ws", "wss").Methods(http.MethodHead, http.MethodGet, http.MethodPost, http.MethodOptions).Handler(srv)
 	r.Path("/graphql/playground").Handler(playground.Handler("GraphQL playground", "/graphql"))
 	r.Path("/graphql/schema.graphql").Methods(http.MethodHead, http.MethodGet).HandlerFunc(graphqlSchema)
@@ -52,12 +52,12 @@ func Router(logger *zap.Logger, db *gorm.DB, storage radiochatter.BlobStorage, d
 		sub.NotFoundHandler = http.HandlerFunc(pprof.Index)
 	}
 
-	return applyMiddleware(
+	return middleware.Apply(
 		r,
-		handlers.RecoveryHandler(handlers.RecoveryLogger(&recoveryLogger{logger: logger.Named("panics")})),
+		middleware.Recover(logger.Named("panics")),
 		handlers.CompressHandler,
-		requestIDMiddleware,
-		loggingMiddleware(logger),
+		middleware.RequestID,
+		middleware.Logging(logger),
 		handlers.CORS(
 			// Note: It's fine to allow all origins because that lets users access
 			// the backend from their own apps
@@ -79,42 +79,15 @@ func graphqlSchema(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte(graphql.Schema))
 }
 
-// applyMiddleware will wrap a handler in a series of middleware functions,
-// taking care to make sure the middleware is executed in the order they are
-// provided.
-func applyMiddleware(handler http.Handler, middleware ...mux.MiddlewareFunc) http.Handler {
-	for i := len(middleware) - 1; i >= 0; i-- {
-		m := middleware[i]
-		handler = m(handler)
-	}
-	return handler
-}
-
-type recoveryLogger struct {
-	logger *zap.Logger
-}
-
-func (r *recoveryLogger) Println(values ...any) {
-	var payload any
-
-	if len(values) == 1 {
-		payload = values[0]
-	} else {
-		payload = values
-	}
-
-	r.logger.Error("A panic occurred", zap.Any("payload", payload))
-}
-
 func isAuthenticatedDirective(ctx context.Context, obj interface{}, next gql.Resolver) (res interface{}, err error) {
-	logger := GetLogger(ctx)
+	logger := middleware.GetLogger(ctx)
 	logger.Info("Checking auth", zap.Any("obj", obj))
 	// TODO: Actually check authentication
 	return next(ctx)
 }
 
 func recoverFunc(ctx context.Context, err interface{}) (userMessage error) {
-	logger := GetLogger(ctx)
+	logger := middleware.GetLogger(ctx)
 
 	op := gql.GetOperationContext(ctx)
 
@@ -130,7 +103,7 @@ func recoverFunc(ctx context.Context, err interface{}) (userMessage error) {
 }
 
 func logGraphQLErrors(ctx context.Context, next gql.ResponseHandler) *gql.Response {
-	logger := GetLogger(ctx)
+	logger := middleware.GetLogger(ctx)
 	op := gql.GetOperationContext(ctx)
 
 	response := next(ctx)

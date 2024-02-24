@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Michael-F-Bryan/radio-chatter/pkg/on_disk_storage"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap/zaptest"
 	"golang.org/x/sync/errgroup"
@@ -321,7 +322,9 @@ func TestSplitAndArchiveRecording(t *testing.T) {
 	db := testDatabase(ctx, t)
 	stream := Stream{DisplayName: "Test", Url: testRecording(t)}
 	assert.NoError(t, db.Save(&stream).Error)
-	storage := NewOnDiskStorage(logger, t.TempDir())
+	storage, err := on_disk_storage.New(logger, t.TempDir())
+	assert.NoError(t, err)
+	defer storage.Close()
 
 	archiveOps := make(chan ArchiveOperation)
 	temp, cleanup := mkdtemp(logger)

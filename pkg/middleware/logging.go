@@ -1,4 +1,4 @@
-package handlers
+package middleware
 
 import (
 	"bufio"
@@ -26,26 +26,24 @@ func GetLogger(ctx context.Context) *zap.Logger {
 	return zap.L()
 }
 
-func withLogger(ctx context.Context, logger *zap.Logger) context.Context {
+func WithLogger(ctx context.Context, logger *zap.Logger) context.Context {
 	return context.WithValue(ctx, loggerKey{}, logger)
 }
 
-// loggingMiddleware is a middleware function that will attach a logger to the
-// request context and log the result of executing that request.
-func loggingMiddleware(logger *zap.Logger) mux.MiddlewareFunc {
+// Logging is a middleware function that will attach a logger to the request
+// context and log the result of executing that request.
+func Logging(logger *zap.Logger) mux.MiddlewareFunc {
 	return func(h http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			started := time.Now()
 
-			subLogger := logger
-
-			if requestID, ok := GetRequestID(r.Context()); ok {
-				subLogger = logger.With(zap.String("request-id", requestID))
-				ctx := withLogger(r.Context(), subLogger)
-				r = r.WithContext(ctx)
-			} else {
+			requestID, ok := GetRequestID(r.Context())
+			if !ok {
 				logger.DPanic("Logging middleware must be executed after the request ID middleware")
 			}
+			subLogger := logger.With(zap.String("request-id", requestID))
+			ctx := WithLogger(r.Context(), subLogger)
+			r = r.WithContext(ctx)
 
 			writer := spyResponseWriter{inner: w}
 

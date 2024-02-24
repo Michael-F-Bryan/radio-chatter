@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	radiochatter "github.com/Michael-F-Bryan/radio-chatter/pkg"
+	"github.com/Michael-F-Bryan/radio-chatter/pkg/middleware"
+	"github.com/Michael-F-Bryan/radio-chatter/pkg/on_disk_storage"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap/zaptest"
 	"gorm.io/driver/sqlite"
@@ -15,10 +17,12 @@ import (
 func TestGetStreamByID(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	ctx := testContext(t)
+	storage, err := on_disk_storage.New(logger, t.TempDir())
+	assert.NoError(t, err)
+	defer storage.Close()
 	resolver := Resolver{
 		DB:      testDatabase(ctx, t),
-		Logger:  logger,
-		Storage: radiochatter.NewOnDiskStorage(logger, t.TempDir()),
+		Storage: storage,
 	}
 	stream := radiochatter.Stream{DisplayName: "Test", Url: "..."}
 	assert.NoError(t, resolver.DB.Save(&stream).Error)
@@ -33,10 +37,12 @@ func TestGetStreamByID(t *testing.T) {
 func TestGetChunkByID(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	ctx := testContext(t)
+	storage, err := on_disk_storage.New(logger, t.TempDir())
+	assert.NoError(t, err)
+	defer storage.Close()
 	resolver := Resolver{
 		DB:      testDatabase(ctx, t),
-		Logger:  logger,
-		Storage: radiochatter.NewOnDiskStorage(logger, t.TempDir()),
+		Storage: storage,
 	}
 	stream := radiochatter.Stream{DisplayName: "Test", Url: "..."}
 	assert.NoError(t, resolver.DB.Save(&stream).Error)
@@ -71,5 +77,5 @@ func testContext(t *testing.T) context.Context {
 		return ctx
 	}
 
-	return context.Background()
+	return middleware.WithLogger(context.Background(), zaptest.NewLogger(t))
 }

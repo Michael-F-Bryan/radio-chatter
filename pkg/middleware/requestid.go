@@ -1,4 +1,4 @@
-package handlers
+package middleware
 
 import (
 	"context"
@@ -15,7 +15,7 @@ func GetRequestID(ctx context.Context) (id string, exists bool) {
 	return id, exists
 }
 
-func requestIDMiddleware(h http.Handler) http.Handler {
+func RequestID(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestID := uuid.New().String()
 		ctx := context.WithValue(r.Context(), requestIDKey{}, requestID)
