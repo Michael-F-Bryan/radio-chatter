@@ -7,6 +7,7 @@ package graphql
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	radiochatter "github.com/Michael-F-Bryan/radio-chatter/pkg"
@@ -158,40 +159,91 @@ func (r *streamResolver) Transmissions(ctx context.Context, obj *model.Stream, a
 	return p.Page(r.DB, after, count)
 }
 
-// Chunk is the resolver for the chunk field.
-func (r *subscriptionResolver) Chunk(ctx context.Context) (<-chan *model.Chunk, error) {
-	ch := pollForUpdates[radiochatter.Chunk, model.Chunk](
-		ctx,
-		r.DB,
-		middleware.GetLogger(ctx),
-		chunkToGraphQL,
-		func(c radiochatter.Chunk) time.Time { return c.CreatedAt },
-	)
-	return ch, nil
+// Chunks is the resolver for the chunks field.
+func (r *subscriptionResolver) Chunks(ctx context.Context) (<-chan *model.Chunk, error) {
+	p := poller[radiochatter.Chunk, model.Chunk]{
+		db:           r.DB,
+		mapFunc:      chunkToGraphQL,
+		getCreatedAt: func(c *model.Chunk) time.Time { return c.CreatedAt },
+		interval:     r.PollInterval,
+	}
+	return p.begin(ctx), nil
 }
 
-// Transmission is the resolver for the transmission field.
-func (r *subscriptionResolver) Transmission(ctx context.Context) (<-chan *model.Transmission, error) {
-	ch := pollForUpdates[radiochatter.Transmission, model.Transmission](
-		ctx,
-		r.DB,
-		middleware.GetLogger(ctx),
-		transmissionToGraphQL,
-		func(c radiochatter.Transmission) time.Time { return c.CreatedAt },
-	)
-	return ch, nil
+// AllTransmissions is the resolver for the allTransmissions field.
+func (r *subscriptionResolver) AllTransmissions(ctx context.Context) (<-chan *model.Transmission, error) {
+	p := poller[radiochatter.Transmission, model.Transmission]{
+		db:           r.DB,
+		mapFunc:      transmissionToGraphQL,
+		getCreatedAt: func(c *model.Transmission) time.Time { return c.CreatedAt },
+		interval: r.PollInterval,
+	}
+	return p.begin(ctx), nil
 }
 
-// Transcription is the resolver for the transcription field.
-func (r *subscriptionResolver) Transcription(ctx context.Context) (<-chan *model.Transcription, error) {
-	ch := pollForUpdates[radiochatter.Transcription, model.Transcription](
-		ctx,
-		r.DB,
-		middleware.GetLogger(ctx),
-		transcriptionToGraphQL,
-		func(c radiochatter.Transcription) time.Time { return c.CreatedAt },
-	)
-	return ch, nil
+// Transmissions is the resolver for the transmissions field.
+func (r *subscriptionResolver) Transmissions(ctx context.Context, streamID string) (<-chan *model.Transmission, error) {
+	id, err := decodeModelId[radiochatter.Stream](streamID)
+	if err != nil {
+		return nil, err
+	}
+
+	p := poller[radiochatter.Transmission, model.Transmission]{
+		db:           r.DB,
+		mapFunc:      transmissionToGraphQL,
+		getCreatedAt: func(c *model.Transmission) time.Time { return c.CreatedAt },
+		filter: func(db *gorm.DB) *gorm.DB {
+			firstJoin := fmt.Sprintf(
+				"JOIN %[1]s ON %[1]s.id = %[2]s.stream_id",
+				tableName[radiochatter.Stream](db),
+				tableName[radiochatter.Chunk](db),
+			)
+			secondJoin := fmt.Sprintf(
+				"JOIN %[1]s ON %[1]s.id = %[2]s.chunk_id",
+				tableName[radiochatter.Chunk](db),
+				tableName[radiochatter.Transmission](db),
+			)
+			filter := radiochatter.Stream{Model: gorm.Model{ID: id}}
+			return db.Joins(firstJoin).Joins(secondJoin).Where(&filter)
+		},
+		interval: r.PollInterval,
+	}
+	return p.begin(ctx), nil
+}
+
+// AllTranscriptions is the resolver for the allTranscriptions field.
+func (r *subscriptionResolver) AllTranscriptions(ctx context.Context) (<-chan *model.Transcription, error) {
+	p := poller[radiochatter.Transcription, model.Transcription]{
+		db:           r.DB,
+		mapFunc:      transcriptionToGraphQL,
+		getCreatedAt: func(c *model.Transcription) time.Time { return c.CreatedAt },
+		interval: r.PollInterval,
+	}
+	return p.begin(ctx), nil
+}
+
+// Transcriptions is the resolver for the transcriptions field.
+func (r *subscriptionResolver) Transcriptions(ctx context.Context, streamID string) (<-chan *model.Transcription, error) {
+	id, err := decodeModelId[radiochatter.Stream](streamID)
+	if err != nil {
+		return nil, err
+	}
+
+	p := poller[radiochatter.Transcription, model.Transcription]{
+		db:           r.DB,
+		mapFunc:      transcriptionToGraphQL,
+		getCreatedAt: func(c *model.Transcription) time.Time { return c.CreatedAt },
+		filter: func(db *gorm.DB) *gorm.DB {
+			firstJoin := fmt.Sprintf(
+				"JOIN %[1]s ON %[1]s.id = %[2]s.stream_id",
+				tableName[radiochatter.Stream](db),
+				tableName[radiochatter.Transcription](db),
+			)
+			return db.Joins(firstJoin).Where(&radiochatter.Stream{Model: gorm.Model{ID: id}})
+		},
+		interval: r.PollInterval,
+	}
+	return p.begin(ctx), nil
 }
 
 // Transmission is the resolver for the transmission field.

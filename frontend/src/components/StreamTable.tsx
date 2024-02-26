@@ -2,7 +2,6 @@
 import {
   ApolloError,
   useLazyQuery,
-  useQuery,
   useSubscription,
 } from "@apollo/client";
 import dayjs, { Dayjs } from "dayjs";
@@ -26,7 +25,7 @@ import ErrorAlert from "./ErrorAlert";
 
 const TRANSMISSION_SUBSCRIPTION = gql(/* GraphQL */ `
   subscription transmissions {
-    transmission {
+    allTransmissions {
       id
       timestamp
       downloadUrl
@@ -44,7 +43,7 @@ const TRANSMISSION_SUBSCRIPTION = gql(/* GraphQL */ `
 
 const TRANSCRIPTION_SUBSCRIPTION = gql(/* GraphQL */ `
   subscription transcriptions {
-    transcription {
+    allTranscriptions {
       id
       content
       transmission {

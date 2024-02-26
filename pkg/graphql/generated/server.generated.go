@@ -104,9 +104,11 @@ type ComplexityRoot struct {
 	}
 
 	Subscription struct {
-		Chunk         func(childComplexity int) int
-		Transcription func(childComplexity int) int
-		Transmission  func(childComplexity int) int
+		AllTranscriptions func(childComplexity int) int
+		AllTransmissions  func(childComplexity int) int
+		Chunks            func(childComplexity int) int
+		Transcriptions    func(childComplexity int, streamID string) int
+		Transmissions     func(childComplexity int, streamID string) int
 	}
 
 	Transcription struct {
@@ -155,9 +157,11 @@ type StreamResolver interface {
 	Transmissions(ctx context.Context, obj *model.Stream, after *string, createdAfter *time.Time, count int) (*model.TransmissionsConnection, error)
 }
 type SubscriptionResolver interface {
-	Chunk(ctx context.Context) (<-chan *model.Chunk, error)
-	Transmission(ctx context.Context) (<-chan *model.Transmission, error)
-	Transcription(ctx context.Context) (<-chan *model.Transcription, error)
+	Chunks(ctx context.Context) (<-chan *model.Chunk, error)
+	AllTransmissions(ctx context.Context) (<-chan *model.Transmission, error)
+	Transmissions(ctx context.Context, streamID string) (<-chan *model.Transmission, error)
+	AllTranscriptions(ctx context.Context) (<-chan *model.Transcription, error)
+	Transcriptions(ctx context.Context, streamID string) (<-chan *model.Transcription, error)
 }
 type TranscriptionResolver interface {
 	Transmission(ctx context.Context, obj *model.Transcription) (*model.Transmission, error)
@@ -428,26 +432,50 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.StreamsConnection.PageInfo(childComplexity), true
 
-	case "Subscription.chunk":
-		if e.complexity.Subscription.Chunk == nil {
+	case "Subscription.allTranscriptions":
+		if e.complexity.Subscription.AllTranscriptions == nil {
 			break
 		}
 
-		return e.complexity.Subscription.Chunk(childComplexity), true
+		return e.complexity.Subscription.AllTranscriptions(childComplexity), true
 
-	case "Subscription.transcription":
-		if e.complexity.Subscription.Transcription == nil {
+	case "Subscription.allTransmissions":
+		if e.complexity.Subscription.AllTransmissions == nil {
 			break
 		}
 
-		return e.complexity.Subscription.Transcription(childComplexity), true
+		return e.complexity.Subscription.AllTransmissions(childComplexity), true
 
-	case "Subscription.transmission":
-		if e.complexity.Subscription.Transmission == nil {
+	case "Subscription.chunks":
+		if e.complexity.Subscription.Chunks == nil {
 			break
 		}
 
-		return e.complexity.Subscription.Transmission(childComplexity), true
+		return e.complexity.Subscription.Chunks(childComplexity), true
+
+	case "Subscription.transcriptions":
+		if e.complexity.Subscription.Transcriptions == nil {
+			break
+		}
+
+		args, err := ec.field_Subscription_transcriptions_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Subscription.Transcriptions(childComplexity, args["streamID"].(string)), true
+
+	case "Subscription.transmissions":
+		if e.complexity.Subscription.Transmissions == nil {
+			break
+		}
+
+		args, err := ec.field_Subscription_transmissions_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Subscription.Transmissions(childComplexity, args["streamID"].(string)), true
 
 	case "Transcription.content":
 		if e.complexity.Transcription.Content == nil {
@@ -845,11 +873,15 @@ type Mutation {
 
 type Subscription {
   """Get chunks as they are recorded."""
-  chunk: Chunk!
+  chunks: Chunk!
   """Get transmissions as they are detected."""
-  transmission: Transmission!
+  allTransmissions: Transmission!
+  """Subscribe to the newly recorded transmissions for a particular stream."""
+  transmissions(streamID: ID!): Transmission!
   """Get transcriptions as transmissions are processed with speech-to-text."""
-  transcription: Transcription!
+  allTranscriptions: Transcription!
+  """Subscribe to the newly translated messages for a particular stream."""
+  transcriptions(streamID: ID!): Transcription!
 }
 `, BuiltIn: false},
 }
@@ -1078,6 +1110,36 @@ func (ec *executionContext) field_Stream_transmissions_args(ctx context.Context,
 		}
 	}
 	args["count"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Subscription_transcriptions_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 string
+	if tmp, ok := rawArgs["streamID"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("streamID"))
+		arg0, err = ec.unmarshalNID2string(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["streamID"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Subscription_transmissions_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 string
+	if tmp, ok := rawArgs["streamID"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("streamID"))
+		arg0, err = ec.unmarshalNID2string(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["streamID"] = arg0
 	return args, nil
 }
 
@@ -2774,8 +2836,8 @@ func (ec *executionContext) fieldContext_StreamsConnection_pageInfo(ctx context.
 	return fc, nil
 }
 
-func (ec *executionContext) _Subscription_chunk(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
-	fc, err := ec.fieldContext_Subscription_chunk(ctx, field)
+func (ec *executionContext) _Subscription_chunks(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	fc, err := ec.fieldContext_Subscription_chunks(ctx, field)
 	if err != nil {
 		return nil
 	}
@@ -2788,7 +2850,7 @@ func (ec *executionContext) _Subscription_chunk(ctx context.Context, field graph
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Subscription().Chunk(rctx)
+		return ec.resolvers.Subscription().Chunks(rctx)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -2819,7 +2881,7 @@ func (ec *executionContext) _Subscription_chunk(ctx context.Context, field graph
 	}
 }
 
-func (ec *executionContext) fieldContext_Subscription_chunk(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Subscription_chunks(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Subscription",
 		Field:      field,
@@ -2850,8 +2912,8 @@ func (ec *executionContext) fieldContext_Subscription_chunk(ctx context.Context,
 	return fc, nil
 }
 
-func (ec *executionContext) _Subscription_transmission(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
-	fc, err := ec.fieldContext_Subscription_transmission(ctx, field)
+func (ec *executionContext) _Subscription_allTransmissions(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	fc, err := ec.fieldContext_Subscription_allTransmissions(ctx, field)
 	if err != nil {
 		return nil
 	}
@@ -2864,7 +2926,7 @@ func (ec *executionContext) _Subscription_transmission(ctx context.Context, fiel
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Subscription().Transmission(rctx)
+		return ec.resolvers.Subscription().AllTransmissions(rctx)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -2895,7 +2957,7 @@ func (ec *executionContext) _Subscription_transmission(ctx context.Context, fiel
 	}
 }
 
-func (ec *executionContext) fieldContext_Subscription_transmission(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Subscription_allTransmissions(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Subscription",
 		Field:      field,
@@ -2928,8 +2990,8 @@ func (ec *executionContext) fieldContext_Subscription_transmission(ctx context.C
 	return fc, nil
 }
 
-func (ec *executionContext) _Subscription_transcription(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
-	fc, err := ec.fieldContext_Subscription_transcription(ctx, field)
+func (ec *executionContext) _Subscription_transmissions(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	fc, err := ec.fieldContext_Subscription_transmissions(ctx, field)
 	if err != nil {
 		return nil
 	}
@@ -2942,7 +3004,96 @@ func (ec *executionContext) _Subscription_transcription(ctx context.Context, fie
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Subscription().Transcription(rctx)
+		return ec.resolvers.Subscription().Transmissions(rctx, fc.Args["streamID"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func(ctx context.Context) graphql.Marshaler {
+		select {
+		case res, ok := <-resTmp.(<-chan *model.Transmission):
+			if !ok {
+				return nil
+			}
+			return graphql.WriterFunc(func(w io.Writer) {
+				w.Write([]byte{'{'})
+				graphql.MarshalString(field.Alias).MarshalGQL(w)
+				w.Write([]byte{':'})
+				ec.marshalNTransmission2ᚖgithubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐTransmission(ctx, field.Selections, res).MarshalGQL(w)
+				w.Write([]byte{'}'})
+			})
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (ec *executionContext) fieldContext_Subscription_transmissions(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Transmission_id(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Transmission_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_Transmission_updatedAt(ctx, field)
+			case "timestamp":
+				return ec.fieldContext_Transmission_timestamp(ctx, field)
+			case "length":
+				return ec.fieldContext_Transmission_length(ctx, field)
+			case "sha256":
+				return ec.fieldContext_Transmission_sha256(ctx, field)
+			case "downloadUrl":
+				return ec.fieldContext_Transmission_downloadUrl(ctx, field)
+			case "transcription":
+				return ec.fieldContext_Transmission_transcription(ctx, field)
+			case "chunk":
+				return ec.fieldContext_Transmission_chunk(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Transmission", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Subscription_transmissions_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_allTranscriptions(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	fc, err := ec.fieldContext_Subscription_allTranscriptions(ctx, field)
+	if err != nil {
+		return nil
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().AllTranscriptions(rctx)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -2973,7 +3124,7 @@ func (ec *executionContext) _Subscription_transcription(ctx context.Context, fie
 	}
 }
 
-func (ec *executionContext) fieldContext_Subscription_transcription(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Subscription_allTranscriptions(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Subscription",
 		Field:      field,
@@ -2994,6 +3145,87 @@ func (ec *executionContext) fieldContext_Subscription_transcription(ctx context.
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Transcription", field.Name)
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_transcriptions(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	fc, err := ec.fieldContext_Subscription_transcriptions(ctx, field)
+	if err != nil {
+		return nil
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().Transcriptions(rctx, fc.Args["streamID"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func(ctx context.Context) graphql.Marshaler {
+		select {
+		case res, ok := <-resTmp.(<-chan *model.Transcription):
+			if !ok {
+				return nil
+			}
+			return graphql.WriterFunc(func(w io.Writer) {
+				w.Write([]byte{'{'})
+				graphql.MarshalString(field.Alias).MarshalGQL(w)
+				w.Write([]byte{':'})
+				ec.marshalNTranscription2ᚖgithubᚗcomᚋMichaelᚑFᚑBryanᚋradioᚑchatterᚋpkgᚋgraphqlᚋmodelᚐTranscription(ctx, field.Selections, res).MarshalGQL(w)
+				w.Write([]byte{'}'})
+			})
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (ec *executionContext) fieldContext_Subscription_transcriptions(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Transcription_id(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Transcription_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_Transcription_updatedAt(ctx, field)
+			case "content":
+				return ec.fieldContext_Transcription_content(ctx, field)
+			case "transmission":
+				return ec.fieldContext_Transcription_transmission(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Transcription", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Subscription_transcriptions_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -6244,12 +6476,16 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 	}
 
 	switch fields[0].Name {
-	case "chunk":
-		return ec._Subscription_chunk(ctx, fields[0])
-	case "transmission":
-		return ec._Subscription_transmission(ctx, fields[0])
-	case "transcription":
-		return ec._Subscription_transcription(ctx, fields[0])
+	case "chunks":
+		return ec._Subscription_chunks(ctx, fields[0])
+	case "allTransmissions":
+		return ec._Subscription_allTransmissions(ctx, fields[0])
+	case "transmissions":
+		return ec._Subscription_transmissions(ctx, fields[0])
+	case "allTranscriptions":
+		return ec._Subscription_allTranscriptions(ctx, fields[0])
+	case "transcriptions":
+		return ec._Subscription_transcriptions(ctx, fields[0])
 	default:
 		panic("unknown field " + strconv.Quote(fields[0].Name))
 	}

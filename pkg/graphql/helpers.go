@@ -13,6 +13,7 @@ import (
 	radiochatter "github.com/Michael-F-Bryan/radio-chatter/pkg"
 	"github.com/Michael-F-Bryan/radio-chatter/pkg/blob"
 	"github.com/Michael-F-Bryan/radio-chatter/pkg/graphql/model"
+	"github.com/Michael-F-Bryan/radio-chatter/pkg/middleware"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -133,58 +134,110 @@ func getByID[Model any, Generated any](db *gorm.DB, id string, mapFunc func(Mode
 	return &value, nil
 }
 
-// pollForUpdates returns a channel that will receive new records as they are
-// created.
+// poller polls the database for newly created entities.
+type poller[Model any, Generated any] struct {
+	db           *gorm.DB
+	mapFunc      func(Model) Generated
+	filter       func(db *gorm.DB) *gorm.DB
+	getCreatedAt func(*Generated) time.Time
+	interval     time.Duration
+}
+
+// begin returns a channel that will receive new records as they are created.
 //
 // Under the hood, this works by periodically polling the database for anything
 // where the createdAt field is later than the previous poll time.
-func pollForUpdates[Model any, Generated any](
-	ctx context.Context,
-	db *gorm.DB,
-	logger *zap.Logger,
-	mapFunc func(Model) Generated,
-	getCreatedAt func(Model) time.Time,
-) <-chan *Generated {
-	ch := make(chan *Generated)
+func (p poller[Model, Generated]) begin(ctx context.Context) <-chan *Generated {
+	ch := make(chan *Generated, 1)
+	ty := typeOf[Model]()
+	logger := middleware.GetLogger(ctx).Named("subscription").With(zap.Stringer("type", ty))
+
+	interval := p.interval
+	if interval == 0 {
+		interval = radiochatter.ChunkLength
+	}
 
 	go func() {
 		defer close(ch)
-		logger.Debug("Subscription started", zap.Stringer("type", typeOf[Model]()))
+		logger.Debug("Subscription started")
 		defer logger.Debug("Subscription cancelled")
+		logger.Warn("SUBSCRIPTION")
+		fmt.Printf("Started subscription\n")
+		defer fmt.Printf("Ended subscription\n")
 
-		timer := time.NewTicker(radiochatter.ChunkLength)
+		timer := time.NewTicker(interval)
 		defer timer.Stop()
 
+		db := p.db.WithContext(ctx)
 		lastCheck := time.Now()
-		db := db.WithContext(ctx)
 
 		for {
+			fmt.Printf("Loop %s %s\n", interval, lastCheck)
 			select {
 			case <-timer.C:
-				var items []Model
-				err := db.Where("created_at > ?", lastCheck).Find(&items).Error
+				fmt.Printf("Timer\n")
+				items, err := poll(ctx, logger, db, lastCheck, p.mapFunc, p.filter)
+				fmt.Printf("Return %v %e\n", items, err)
 				if err != nil {
 					logger.Error("Unable to fetch recently created items", zap.Error(err))
+					fmt.Printf("*** Error fetching: %e\n", err)
 					return
 				}
 
 				for _, item := range items {
-					value := mapFunc(item)
 					select {
-					case ch <- &value:
-						lastCheck = getCreatedAt(item)
+					case ch <- item:
+						lastCheck = p.getCreatedAt(item)
 					case <-ctx.Done():
 						return
 					}
 				}
 
 			case <-ctx.Done():
+				fmt.Printf("Cancelled")
 				return
 			}
 		}
 	}()
 
 	return ch
+}
+
+func poll[Model any, Generated any](
+	ctx context.Context,
+	logger *zap.Logger,
+	db *gorm.DB,
+	lastChecked time.Time,
+	mapFunc func(Model) Generated,
+	filter func(*gorm.DB) *gorm.DB,
+) ([]*Generated, error) {
+	table := tableName[Model](db)
+	fmt.Printf("Polling %s\n", table)
+
+	if filter != nil {
+		db = filter(db)
+	}
+
+	db = db.Where(table+".created_at >= ?", lastChecked)
+	fmt.Printf("%#v\n", db.Statement.Clauses)
+
+	var items []Model
+
+	if err := db.Find(&items).Error; err != nil {
+		logger.Fatal("Lookup failed", zap.Error(err))
+		return nil, err
+	}
+
+	fmt.Printf("(%s %s) %v\n", table, lastChecked.Format(time.RFC3339Nano), items)
+
+	var generated []*Generated
+
+	for _, item := range items {
+		gen := mapFunc(item)
+		generated = append(generated, &gen)
+	}
+
+	return generated, nil
 }
 
 func signedURL(ctx context.Context, logger *zap.Logger, storage blob.Storage, sha256 string) (*string, error) {

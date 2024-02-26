@@ -159,9 +159,13 @@ type Mutation {
 
 type Subscription {
   """Get chunks as they are recorded."""
-  chunk: Chunk!
+  chunks: Chunk!
   """Get transmissions as they are detected."""
-  transmission: Transmission!
+  allTransmissions: Transmission!
+  """Subscribe to the newly recorded transmissions for a particular stream."""
+  transmissions(streamID: ID!): Transmission!
   """Get transcriptions as transmissions are processed with speech-to-text."""
-  transcription: Transcription!
+  allTranscriptions: Transcription!
+  """Subscribe to the newly translated messages for a particular stream."""
+  transcriptions(streamID: ID!): Transcription!
 }
