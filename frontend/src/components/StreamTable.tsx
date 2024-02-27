@@ -164,7 +164,7 @@ export default function StreamTable({ streamID }: Props) {
   // Capture new transmissions as they are recorded
   useSubscription(TRANSMISSION_SUBSCRIPTION, {
     onData: opts => {
-      const t = opts.data?.data?.transmission;
+      const t = opts.data?.data?.allTransmissions;
       if (t && t.chunk.stream.id == streamID) {
         const msg = {
           id: t.id,
@@ -188,7 +188,7 @@ export default function StreamTable({ streamID }: Props) {
   // Make sure we update a row whenever speech-to-text runs on it
   useSubscription(TRANSCRIPTION_SUBSCRIPTION, {
     onData: opts => {
-      const t = opts.data?.data?.transcription;
+      const t = opts.data?.data?.allTranscriptions;
       if (t && t.transmission.chunk.stream.id == streamID) {
         const msg = {
           id: t.id,
