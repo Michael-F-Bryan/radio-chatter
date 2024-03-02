@@ -3,10 +3,21 @@
 [![Continuous Integration](https://github.com/Michael-F-Bryan/radio-chatter/actions/workflows/ci.yml/badge.svg)](https://github.com/Michael-F-Bryan/radio-chatter/actions/workflows/ci.yml)
 [![Link to the production environment](https://img.shields.io/badge/Frontend-live-green)](https://radio-chatter.vercel.app/)
 
-
 Radio Chatter is a service created by the [Communications Support Unit][csu] for
 monitoring DFES radio traffic and providing better situational awareness during
 emergencies.
+
+## Architecture
+
+This project contains 4 major components,
+
+- Download - downloads an audio stream using `ffmpeg` and splits it into both
+  60-second chunks and "transmissions" containing actual speech
+- Transcribe - takes a transmission and runs speech-to-text on it
+- Backend - A GraphQL API that gives users access to everything (see
+  [`schema.graphql`](pkg/graphql/schema.graphql))
+- Frontend - A NextJS UI that people can use to listen to streams and search
+  through transmissions as they are recorded and transcribed
 
 ## License
 
